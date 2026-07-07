@@ -8,7 +8,12 @@ import type { Statement } from './types.ts';
 const VOLATILE_DEFAULT = /\bdefault\b[^,)]*\b(now|gen_random_uuid|uuid_generate|random|clock_timestamp|current_timestamp|statement_timestamp|transaction_timestamp)\s*\(/i;
 
 export function parse(sql: string): Statement[] {
-  return sql.split(';').map((s) => s.trim()).filter(Boolean).map(classify);
+  return stripComments(sql).split(';').map((s) => s.trim()).filter(Boolean).map(classify);
+}
+
+/** Remove block + line comments so keywords/identifiers inside them can't misfire. */
+function stripComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
 }
 
 function classify(raw: string): Statement {
@@ -46,10 +51,12 @@ function kindOf(s: string): string {
 }
 
 function tableOf(lower: string): string | null {
+  // ALTER TABLE first (so a stray "on" in a CHECK/expression can't hijack it);
+  // the "on <t>" form is anchored to CREATE INDEX only.
   const m =
-    lower.match(/\bon\s+(?:only\s+)?([a-z_][\w.]*)/) ||                                   // CREATE INDEX ... ON t
-    lower.match(/\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([a-z_][\w.]*)/) ||     // ALTER TABLE t
-    lower.match(/\b(?:reindex\s+table|cluster|vacuum\s+full)\s+(?:concurrently\s+)?([a-z_][\w.]*)/) ||
-    lower.match(/\balter\s+index\s+([a-z_][\w.]*)/);
+    lower.match(/\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([a-z_"][\w."$]*)/) ||
+    lower.match(/create\s+(?:unique\s+)?index\b[^;]*?\bon\s+(?:only\s+)?([a-z_"][\w."$]*)/) ||
+    lower.match(/\b(?:reindex\s+table|cluster|vacuum\s+full)\s+(?:concurrently\s+)?([a-z_"][\w."$]*)/) ||
+    lower.match(/\balter\s+index\s+([a-z_"][\w."$]*)/);
   return m ? m[1].replace(/"/g, '') : null;
 }
