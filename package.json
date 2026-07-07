@@ -4,16 +4,24 @@
   "private": true,
   "type": "module",
   "description": "Load-aware migration safety for the AI-agent era. Ballast keeps prod stable when your agent ships a migration.",
+  "bin": {
+    "ballast": "bin/ballast.js",
+    "ballast-mcp": "bin/ballast-mcp.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
   "scripts": {
-    "check": "tsx src/cli/check.ts",
-    "calibrate": "tsx src/cli/calibrate.ts",
+    "build": "node scripts/build.mjs",
+    "check": "tsx src/cli/index.ts check",
+    "calibrate": "tsx src/cli/index.ts calibrate",
     "spike": "tsx spike/spike1.ts",
     "calib": "tsx spike/calibration-test.ts",
     "mcp-smoke": "tsx spike/mcp-smoke.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "bin": {
-    "ballast": "bin/ballast.mjs"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -23,7 +31,11 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
+    "esbuild": "^0.24.2",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

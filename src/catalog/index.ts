@@ -3,8 +3,7 @@
 // the "DBA depth" asset — the safe/unsafe calls a generic LLM gets subtly wrong.
 // It is versioned data, not code, so it grows without touching the engine.
 
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import catalogData from './postgres.generated.json' with { type: 'json' };
 
 import type { CostClass } from '../types.ts';
 
@@ -27,14 +26,8 @@ export interface CatalogEntry {
   _correction?: string;   // the verifier's fix, attached for auditability
 }
 
-let cache: CatalogEntry[] | null = null;
-
 export function catalog(): CatalogEntry[] {
-  if (!cache) {
-    const p = fileURLToPath(new URL('./postgres.generated.json', import.meta.url));
-    cache = JSON.parse(fs.readFileSync(p, 'utf8')) as CatalogEntry[];
-  }
-  return cache;
+  return catalogData as unknown as CatalogEntry[];
 }
 
 /** Fuzzy lookup by id/title keyword — the matcher that binds parsed statements to catalog entries grows here. */

@@ -60,8 +60,8 @@ function collect(paths: string[]): { file: string; sql: string }[] {
   return out;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+export async function runCheck(argv: string[]): Promise<number> {
+  const args = parseArgs(argv);
   const store = new CalibrationStore(); // env-calibrated constants from `ballast calibrate`
   const results: { file: string; findings: Finding[] }[] = [];
 
@@ -80,7 +80,7 @@ async function main() {
   else render(results, !!args.dsn, args.explain);
 
   const worst = Math.max(0, ...results.flatMap((r) => r.findings.map((f) => SEV_RANK[f.severity])));
-  process.exit(worst >= SEV_RANK[args.failOn] ? 1 : 0);
+  return worst >= SEV_RANK[args.failOn] ? 1 : 0;
 }
 
 function render(results: { file: string; findings: Finding[] }[], loadAware: boolean, explain: boolean) {
@@ -101,4 +101,3 @@ function render(results: { file: string; findings: Finding[] }[], loadAware: boo
   console.log(`Summary: ${parts.join(', ') || 'nothing recognized'}`);
 }
 
-main().catch((e) => { console.error('ballast: ' + (e as Error).message); process.exit(2); });

@@ -10,12 +10,10 @@ import { bucketKey, fingerprint } from '../calibration/fingerprint.ts';
 import { CalibrationStore } from '../calibration/store.ts';
 import { DEFAULT_CALIBRATION } from '../loadModel.ts';
 
-const argv = process.argv.slice(2);
-const val = (name: string): string | undefined => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-
-async function main() {
+export async function runCalibrate(argv: string[]): Promise<number> {
+  const val = (name: string): string | undefined => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
   const dsn = val('--dsn');
-  if (!dsn) { console.error('usage: ballast calibrate --dsn <postgres-url> [--sizes 100000,1000000] [--storage ebs-gp3]'); process.exit(2); }
+  if (!dsn) { console.error('usage: ballast calibrate --dsn <postgres-url> [--sizes 100000,1000000] [--storage ebs-gp3]'); return 2; }
   const sizes = (val('--sizes') ?? '100000,1000000').split(',').map(Number);
   const storage = val('--storage') ?? 'unknown';
 
@@ -54,6 +52,7 @@ async function main() {
     await c.end();
   }
   console.log(`\n✓ Saved to ~/.ballast/calibration.json — ballast check --dsn now predicts with YOUR database's throughput.`);
+  return 0;
 }
 
 async function setup(c: pg.Client, n: number) {
@@ -74,5 +73,3 @@ async function time(c: pg.Client, sql: string): Promise<number> {
   return Number(process.hrtime.bigint() - t) / 1e9;
 }
 function fmtRows(n: number): string { return n >= 1e6 ? (n / 1e6) + 'M' : n >= 1e3 ? (n / 1e3) + 'K' : String(n); }
-
-main().catch((e) => { console.error('ballast calibrate: ' + (e as Error).message); process.exit(1); });

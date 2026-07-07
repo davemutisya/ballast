@@ -42,13 +42,16 @@ founder-strategy-2026.md  (repo root parent) the decision + do-not-build list
 
 ## Use
 ```bash
-npm install
-npm run check -- migrations/                       # lint migrations (structural)
-npm run check -- migrations/ --dsn "$DATABASE_URL" # load-aware: weight by real size + live load
-npm run calibrate -- --dsn "$DATABASE_URL"         # learn YOUR db's throughput (local, private)
+npm install && npm run build          # bundle CLI + MCP to dist/ (plain node, catalog inlined)
+
+ballast check migrations/                        # lint (structural); --explain for verified detail
+ballast check migrations/ --dsn "$DATABASE_URL"  # load-aware: weight by real size + live load
+ballast calibrate --dsn "$DATABASE_URL"          # learn YOUR db's throughput (local, private)
 ```
-`ballast check` exits non-zero on a danger/critical finding → drops into CI as a gate.
-The MCP server (`src/mcp.ts`) exposes `analyze_migration` for the agent loop.
+(From the repo without a global install: `node bin/ballast.js check migrations/`, or
+`npm run check -- migrations/`.) `ballast check` exits non-zero on a danger/critical
+finding → drops into CI as a gate. The `ballast-mcp` bin exposes `analyze_migration`
+for the agent loop (Cursor / Claude Code / Copilot).
 
 ## Dev / validation
 ```bash
