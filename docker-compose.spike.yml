@@ -1,0 +1,21 @@
+# Ephemeral Postgres for Spike 1. Runs on 5433 to avoid clashing with a local 5432.
+services:
+  pg:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ballast
+      POSTGRES_DB: ballast_spike
+    ports:
+      - "5433:5432"
+    command:
+      # Give it enough shared_buffers that scan/rewrite times reflect real work,
+      # not disk-starvation noise. fsync off — this is a throwaway spike DB.
+      - "postgres"
+      - "-c"
+      - "shared_buffers=512MB"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "max_connections=200"
+    tmpfs:
+      - /var/lib/postgresql/data
