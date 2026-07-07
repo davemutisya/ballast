@@ -74,8 +74,11 @@ function provenanceFrom(facts: LockFacts): string | undefined {
 function structuralSeverity(f: LockFacts): Severity {
   if (f.costClass === 'REWRITE') return 'danger';                          // rewrites are always heavy
   if (f.costClass === 'SCAN' && f.blocksWrites) return 'danger';           // scan-bound write block, unknown size
-  if (!f.blocksReads && !f.blocksWrites) return 'safe';                    // blocks nothing (e.g. CONCURRENTLY) — safe even with hardening tips
-  if (f.blocksReads && f.blocksWrites) return 'caution';                   // ACCESS EXCLUSIVE metadata — queue risk if a long txn is live
+  if (!f.blocksReads && !f.blocksWrites) return 'safe';                    // blocks nothing (e.g. CONCURRENTLY)
+  // Brief metadata-only ACCESS EXCLUSIVE: safe by default (don't cry wolf like on
+  // a plain ADD COLUMN); caution only if the catalog gives it a real safe-rewrite
+  // (a known hazard, e.g. DROP COLUMN's app-cache / deploy-first). The live
+  // queue-pileup risk is caught in --dsn mode when a long txn is actually present.
   return f.safeRewrite ? 'caution' : 'safe';
 }
 
