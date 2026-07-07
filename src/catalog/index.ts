@@ -50,8 +50,8 @@ export function stats() {
   const all = catalog();
   return {
     total: all.length,
-    confirmed: all.filter((e) => e._verdict === 'CONFIRMED').length,
-    corrected: all.filter((e) => e._verdict === 'CORRECTED').length,
+    verified: all.filter((e) => e._verdict === 'VERIFIED').length,
+    corrected: all.filter((e) => e._correction).length, // entries the verifier fixed
     byCostClass: all.reduce<Record<string, number>>((m, e) => ((m[e.costClass] = (m[e.costClass] ?? 0) + 1), m), {}),
   };
 }

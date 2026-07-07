@@ -35,8 +35,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-concurrently",
@@ -77,8 +76,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://www.postgresql.org/message-id/CAMAof6-=D9jZyBLpbPq7FZJjtuHUtErxyOgAkBkKnVXDj=BDhw@mail.gmail.com"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-unique-index-nonconcurrent",
@@ -110,8 +108,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-unique-index-concurrently",
@@ -146,8 +143,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "cleanup-invalid-index-drop-concurrently",
@@ -185,8 +181,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-index-nonconcurrent",
@@ -219,8 +214,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-index-concurrently",
@@ -256,8 +250,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-unique-constraint-using-index",
@@ -294,8 +287,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-nullable-no-default",
@@ -328,8 +320,7 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-const-default-nullable",
@@ -362,8 +353,7 @@
       "https://www.depesz.com/2018/04/04/waiting-for-postgresql-11-fast-alter-table-add-column-with-a-non-null-default/",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-not-null-const-default",
@@ -395,8 +385,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-volatile-default",
@@ -426,8 +415,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.depesz.com/2018/04/04/waiting-for-postgresql-11-fast-alter-table-add-column-with-a-non-null-default/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-generated-stored",
@@ -456,8 +444,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-generated-virtual",
@@ -485,8 +472,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-identity",
@@ -514,8 +500,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-domain-type",
@@ -542,8 +527,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-inline-unique",
@@ -573,8 +557,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-inline-primary-key",
@@ -603,8 +586,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/sql-createindex.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-col-inline-references-fk",
@@ -619,7 +601,7 @@
       "The new column is all NULL (default), so FK validation of existing rows is trivial (NULLs are exempt from FK checks) — no scan of t is needed"
     ],
     "unsafeWhen": [
-      "The inline form takes ACCESS EXCLUSIVE on t AND a lock on the REFERENCED table 'other' (SHARE ROW EXCLUSIVE + ACCESS EXCLUSIVE on the PK index) at the same time — two-table lock acquisition raises deadlock/queue risk on hot referenced tables",
+      "The inline form takes ACCESS EXCLUSIVE on t AND a lock on the REFERENCED table 'other' (SHARE ROW EXCLUSIVE +) at the same time — two-table lock acquisition raises deadlock/queue risk on hot referenced tables",
       "If a constant default pointing at a real key is used, existing rows are validated against 'other' (a scan)"
     ],
     "edgeCases": [
@@ -634,8 +616,8 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "ADD FOREIGN KEY takes only SHARE ROW EXCLUSIVE on the referenced table — NOT an ACCESS EXCLUSIVE lock on its PK index (removed). VALIDATE CONSTRAINT of an FK also takes ROW SHARE on the referenced table (non-blocking)."
   },
   {
     "id": "add-col-inline-check",
@@ -664,8 +646,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "varchar-length-increase",
@@ -701,8 +682,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "varchar-length-decrease",
@@ -733,8 +713,7 @@
       "https://www.postgresql.org/docs/release/9.2.0/",
       "https://squawkhq.com/docs/changing-column-type"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "varchar-to-text",
@@ -766,8 +745,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://squawkhq.com/docs/changing-column-type"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "text-to-varchar-unlimited",
@@ -798,8 +776,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "text-to-varchar-limited",
@@ -828,8 +805,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/release/9.2.0/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "int-to-bigint",
@@ -861,8 +837,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "numeric-precision-increase-same-scale",
@@ -896,8 +871,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "numeric-precision-or-scale-decrease",
@@ -927,8 +901,7 @@
       "https://www.postgresql.org/docs/release/9.2.0/",
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "timestamp-to-timestamptz",
@@ -960,8 +933,7 @@
       "https://wiki.postgresql.org/wiki/Don't_Do_This",
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "timestamptz-to-timestamp",
@@ -991,8 +963,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://wiki.postgresql.org/wiki/Don't_Do_This"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "enum-add-value",
@@ -1026,8 +997,7 @@
       "https://www.postgresql.org/docs/release/12.0/",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "set-not-null-naive",
@@ -1060,8 +1030,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-check-not-null-not-valid",
@@ -1094,8 +1063,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.braintreepayments.com/blog/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "validate-check-constraint",
@@ -1127,8 +1095,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "set-not-null-fastpath",
@@ -1166,8 +1133,7 @@
       "https://www.depesz.com/2018/08/28/waiting-for-postgresql-12-allow-alter-table-set-not-null-to-skip-scan-if-a-suitable-check-constraint-is-found/",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-redundant-check",
@@ -1197,8 +1163,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-not-null",
@@ -1231,8 +1196,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://www.braintreepayments.com/blog/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg18-native-not-null-not-valid",
@@ -1240,8 +1204,8 @@
     "sqlPattern": "ALTER TABLE t ADD CONSTRAINT t_col_nn NOT NULL col NOT VALID;  -- then, separately:  ALTER TABLE t VALIDATE CONSTRAINT t_col_nn;",
     "lockMode": "ACCESS EXCLUSIVE (ADD ... NOT VALID) then SHARE UPDATE EXCLUSIVE (VALIDATE)",
     "costClass": "CONDITIONAL",
-    "blocksReads": false,
-    "blocksWrites": false,
+    "blocksReads": true,
+    "blocksWrites": true,
     "safeRewrite": "On PG 18+, prefer this native two-step over the CHECK-constraint dance: (1) ADD ... NOT NULL ... NOT VALID (METADATA_ONLY, ACCESS EXCLUSIVE, brief — guard with lock_timeout+retry); (2) VALIDATE CONSTRAINT (SCAN, SHARE UPDATE EXCLUSIVE, online, does not block reads/writes). The column becomes a fully valid NOT NULL with no separate SET NOT NULL and no leftover redundant CHECK to drop.",
     "safeWhen": [
       "PostgreSQL 18 or newer",
@@ -1266,8 +1230,8 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "The ADD CONSTRAINT ... NOT NULL ... NOT VALID step holds a momentary ACCESS EXCLUSIVE lock, so it briefly blocks reads AND writes (matching add-check-not-null-not-valid). Only the VALIDATE step (SHARE UPDATE EXCLUSIVE) is non-blocking."
   },
   {
     "id": "drop-column-basic",
@@ -1297,7 +1261,7 @@
       "IF EXISTS only suppresses the 'column does not exist' error; it does not change locking or dependency behavior."
     ],
     "versionNotes": [
-      "Behavior is stable across all currently supported majors (13–18); wording verified against postgresql.org/docs/current (v18).",
+      "Behavior is stable across all currently supported majors (14–18); wording verified against postgresql.org/docs/current (v18).",
       "lock_timeout is available since PostgreSQL 9.3 — the safe-acquisition recipe assumes it.",
       "Braintree/Paul Gross list 'Drop a column' under safe operations, but that predates the modern emphasis on the app-schema-cache caveat that strong_migrations codifies."
     ],
@@ -1307,8 +1271,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-column-lock-acquisition-queue",
@@ -1344,8 +1307,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-column-restrict-with-dependents",
@@ -1375,8 +1337,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-column-cascade",
@@ -1407,8 +1368,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-column-dependent-indexes",
@@ -1440,8 +1400,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/sql-createindex.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-column-space-and-toast-reclamation",
@@ -1475,8 +1434,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-fk-validated-single-step",
@@ -1514,8 +1472,7 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-fk-not-valid",
@@ -1550,8 +1507,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "validate-constraint-fk",
@@ -1585,8 +1541,7 @@
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-check-validated-single-step",
@@ -1621,8 +1576,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-check-not-valid",
@@ -1655,8 +1609,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "validate-constraint-check",
@@ -1689,8 +1642,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "not-null-via-check-constraint",
@@ -1725,8 +1677,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/braintree-product-technology/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-01-build-index-concurrently",
@@ -1756,7 +1707,7 @@
       "TOAST: the index covers only the indexed key columns; wide/TOASTed non-key data does not add heap-rewrite cost here (no rewrite occurs)."
     ],
     "versionNotes": [
-      "CREATE INDEX CONCURRENTLY available since 8.2; behavior described is stable across all currently supported majors (13–18).",
+      "CREATE INDEX CONCURRENTLY available since 8.2; behavior described is stable across all currently supported majors (14–18).",
       "REINDEX INDEX CONCURRENTLY (an alternative recovery for an invalid index) requires PostgreSQL 12+."
     ],
     "sources": [
@@ -1765,8 +1716,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-02-add-unique-using-index",
@@ -1805,8 +1755,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://pganalyze.com/blog/postgres-lock-monitoring"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-03-add-primary-key-using-index",
@@ -1845,8 +1794,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-04-swap-primary-key",
@@ -1881,8 +1829,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-05-unsafe-direct-add-constraint",
@@ -1915,8 +1862,7 @@
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/",
       "https://pganalyze.com/blog/postgres-lock-monitoring"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-06-cleanup-invalid-index",
@@ -1949,8 +1895,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "pg-uqpk-07-lock-timeout-retry-wrapper",
@@ -1987,8 +1932,7 @@
       "https://pganalyze.com/blog/postgres-lock-monitoring",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CONFIRMED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-table",
@@ -2016,7 +1960,7 @@
       "Same code path (RenameStmt / ACCESS EXCLUSIVE) applies to RENAME of a view, materialized view, sequence, or foreign table."
     ],
     "versionNotes": [
-      "ACCESS EXCLUSIVE for table rename across all supported versions (13–18); no version has reduced it.",
+      "ACCESS EXCLUSIVE for table rename across all supported versions (14–18); no version has reduced it.",
       "ACCESS EXCLUSIVE conflicts with all lock modes, so it is the only lock that blocks a plain SELECT (ACCESS SHARE)."
     ],
     "sources": [
@@ -2026,8 +1970,7 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-column",
@@ -2062,8 +2005,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-constraint",
@@ -2094,8 +2036,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-index",
@@ -2128,8 +2069,8 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://pglocks.org/?pgcommand=ALTER+INDEX+%28RENAME%29"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "CORRECTED (was inverted): ALTER INDEX ... RENAME DOES rename the owning UNIQUE/PK/EXCLUDE constraint as well, under SHARE UPDATE EXCLUSIVE. The asymmetry: RENAME CONSTRAINT renames the index under ACCESS EXCLUSIVE, whereas RENAME INDEX renames the constraint under SHARE UPDATE EXCLUSIVE. Tooling keying off the constraint name can break even from ALTER INDEX RENAME."
   },
   {
     "id": "set-default",
@@ -2163,8 +2104,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-default",
@@ -2195,8 +2135,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-relation-nontable",
@@ -2227,8 +2166,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-table-partition-of",
@@ -2264,8 +2202,7 @@
       "https://www.postgresql.org/docs/current/ddl-partitioning.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "attach-partition-no-check",
@@ -2303,8 +2240,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://www.postgresql.org/message-id/20190613200720.GA18557@alvherre.pgsql"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "attach-partition-with-check",
@@ -2337,8 +2273,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/ddl-partitioning.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "attach-partition-default-exists",
@@ -2369,8 +2304,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/ddl-partitioning.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "detach-partition-normal",
@@ -2404,8 +2338,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://medium.com/@hnasr/the-danger-of-detaching-partitions-in-postgres-020dd919d038"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "detach-partition-concurrently",
@@ -2440,8 +2373,7 @@
       "https://www.postgresql.org/message-id/E1lPX7q-0001lJ-NO@gemulon.postgresql.org",
       "https://medium.com/@hnasr/the-danger-of-detaching-partitions-in-postgres-020dd919d038"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "detach-partition-finalize",
@@ -2471,8 +2403,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/message-id/E1lPX7q-0001lJ-NO@gemulon.postgresql.org"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-partitioned-recurse",
@@ -2504,14 +2435,13 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-partitioned-concurrent-workflow",
     "title": "Partitioned index the safe way: CREATE INDEX ON ONLY + per-partition CONCURRENTLY + ALTER INDEX ATTACH PARTITION",
     "sqlPattern": "CREATE INDEX idx_parent ON ONLY measurement (logtime);\nCREATE INDEX CONCURRENTLY idx_p1 ON measurement_p1 (logtime);\nALTER INDEX idx_parent ATTACH PARTITION idx_p1; -- repeat per partition",
-    "lockMode": "Step 1 (ON ONLY parent): brief ACCESS EXCLUSIVE on the parent to create catalog entry for an INVALID index — no scan. Step 2 (CONCURRENTLY per partition): SHARE UPDATE EXCLUSIVE on that partition, does not block writes. Step 3 (ALTER INDEX ATTACH PARTITION): brief lock to attach; when the last partition attaches, the parent index flips to VALID as a metadata-only operation.",
+    "lockMode": "Step 1 (ON ONLY parent): SHARE on the parent to create catalog entry for an INVALID index — no scan. Step 2 (CONCURRENTLY per partition): SHARE UPDATE EXCLUSIVE on that partition, does not block writes. Step 3 (ALTER INDEX ATTACH PARTITION): brief lock to attach; when the last partition attaches, the parent index flips to VALID as a metadata-only operation.",
     "costClass": "CONDITIONAL",
     "blocksReads": false,
     "blocksWrites": false,
@@ -2537,8 +2467,8 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-createindex.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED",
+    "_correction": "CREATE INDEX ON ONLY <parent> (non-concurrent) takes SHARE on the parent (blocks writes, allows reads) — NOT ACCESS EXCLUSIVE."
   },
   {
     "id": "create-index-concurrently-single-partition",
@@ -2570,8 +2500,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "lock-queue-stampede-partitions",
@@ -2604,8 +2533,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "medium"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "vacuum-full",
@@ -2631,15 +2559,14 @@
       "If it must wait for an ACCESS EXCLUSIVE lock behind a long transaction, it queues at the head of the lock queue and stalls all subsequent reads/writes behind it (see lock-queue edge case)"
     ],
     "versionNotes": [
-      "Behavior consistent across all currently supported versions (13–18); VACUUM FULL has rewritten the heap into a new file since 9.0"
+      "Behavior consistent across all currently supported versions (14–18); VACUUM FULL has rewritten the heap into a new file since 9.0"
     ],
     "sources": [
       "https://www.postgresql.org/docs/current/sql-vacuum.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "vacuum-plain",
@@ -2667,8 +2594,7 @@
       "https://www.postgresql.org/docs/current/sql-vacuum.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "cluster-table",
@@ -2695,14 +2621,13 @@
       "Bare CLUSTER; (no table) re-clusters every previously-clustered table the user owns, each under ACCESS EXCLUSIVE"
     ],
     "versionNotes": [
-      "ACCESS EXCLUSIVE behavior consistent across all supported versions (13–18)"
+      "ACCESS EXCLUSIVE behavior consistent across all supported versions (14–18)"
     ],
     "sources": [
       "https://www.postgresql.org/docs/current/sql-cluster.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-index-plain",
@@ -2735,8 +2660,7 @@
       "https://www.postgresql.org/docs/current/sql-reindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-table-plain",
@@ -2767,8 +2691,7 @@
       "https://www.postgresql.org/docs/current/sql-reindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-concurrently",
@@ -2808,8 +2731,7 @@
       "https://paquier.xyz/postgresql-2/postgres-12-reindex-concurrently/",
       "https://www.postgresql.org/docs/release/12.0/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-system-database",
@@ -2840,8 +2762,7 @@
       "https://www.postgresql.org/docs/current/sql-reindex.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-plain",
@@ -2871,8 +2792,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-concurrently",
@@ -2906,8 +2826,7 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "lock-queue-cross-cutting",
@@ -2936,8 +2855,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "protocol-lock-timeout-guard",
@@ -2971,8 +2889,7 @@
       "https://postgres.ai/blog/20210923-zero-downtime-postgres-schema-migrations-lock-timeout-and-retries",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "protocol-lock-queue-head-of-line",
@@ -3003,8 +2920,7 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "protocol-retry-with-backoff",
@@ -3038,8 +2954,7 @@
       "https://pgroll.com/blog/schema-changes-and-the-postgres-lock-queue",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "protocol-statement-timeout",
@@ -3070,8 +2985,7 @@
       "https://postgres.ai/blog/20210923-zero-downtime-postgres-schema-migrations-lock-timeout-and-retries",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-column-nullable-no-default",
@@ -3097,8 +3011,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-column-const-default",
@@ -3128,8 +3041,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-column-volatile-default",
@@ -3158,8 +3070,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-column-not-null-default",
@@ -3189,8 +3100,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "alter-column-type",
@@ -3206,7 +3116,7 @@
       "Otherwise only via the add-new-column / dual-write / backfill / swap dance"
     ],
     "unsafeWhen": [
-      "Any type change requiring per-row conversion (int->bigint pre-14 semantics, timestamp<->timestamptz with tz math, adding/tightening precision) — full rewrite"
+      "Any type change requiring per-row conversion (int->bigint (always a full REWRITE, all versions), timestamp<->timestamptz with tz math, adding/tightening precision) — full rewrite"
     ],
     "edgeCases": [
       "Even binary-coercible changes can force index rebuilds unless the planner proves logical equivalence",
@@ -3218,8 +3128,8 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "int->bigint ALWAYS requires a full table REWRITE in every PostgreSQL version (4-byte vs 8-byte on-disk); there is no PG14 change making it metadata-only. (The REWRITE classification is correct.)"
   },
   {
     "id": "set-not-null",
@@ -3250,8 +3160,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-not-null",
@@ -3275,8 +3184,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-check-not-valid-validate",
@@ -3306,8 +3214,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-foreign-key-not-valid-validate",
@@ -3338,8 +3245,7 @@
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-unique-constraint-via-cic",
@@ -3368,8 +3274,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-blocking",
@@ -3396,8 +3301,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "create-index-concurrently",
@@ -3431,8 +3335,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-index-concurrently",
@@ -3461,8 +3364,7 @@
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680",
       "https://www.postgresql.org/docs/current/sql-createindex.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "reindex-concurrently",
@@ -3491,8 +3393,8 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "Plain (non-concurrent) REINDEX blocks WRITES but not table READS: it takes a SHARE-style lock on the table and ACCESS EXCLUSIVE only on the specific index being rebuilt. It does NOT block table reads."
   },
   {
     "id": "drop-column",
@@ -3520,8 +3422,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rename-column-table",
@@ -3547,8 +3448,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "set-drop-default",
@@ -3573,8 +3473,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "add-stored-generated-column",
@@ -3604,8 +3503,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "set-statistics",
@@ -3631,8 +3529,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "drop-constraint",
@@ -3659,8 +3556,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "attach-detach-partition",
@@ -3692,8 +3588,7 @@
       "https://www.postgresql.org/docs/current/sql-altertable.html",
       "https://www.postgresql.org/docs/current/explicit-locking.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "backfill-batching",
@@ -3722,8 +3617,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://medium.com/paypal-tech/postgresql-at-scale-database-schema-changes-without-downtime-20d3749ed680"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "heavy-access-exclusive-ops",
@@ -3752,8 +3646,8 @@
       "https://www.postgresql.org/docs/current/explicit-locking.html",
       "https://www.postgresql.org/docs/current/sql-altertable.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "Exception: plain REINDEX does NOT belong in the ACCESS-EXCLUSIVE-blocks-reads group. It takes SHARE on the table (blocks writes, allows reads) + ACCESS EXCLUSIVE on the index only. TRUNCATE/CLUSTER/VACUUM FULL/REFRESH MATERIALIZED VIEW do block reads+writes."
   },
   {
     "id": "lock-queue-ae-behind-long-read",
@@ -3790,8 +3684,7 @@
       "https://xata.io/blog/migrations-and-exclusive-locks",
       "https://www.depesz.com/2019/09/26/how-to-run-short-alter-table-without-long-locking-concurrent-queries/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "lock-timeout-retry-pattern",
@@ -3823,8 +3716,7 @@
       "https://github.com/ankane/strong_migrations",
       "https://xata.io/blog/migrations-and-exclusive-locks"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "statement-timeout-vs-lock-timeout",
@@ -3849,14 +3741,14 @@
       "statement_timeout does not fire while a statement is *waiting* for a lock — that window is governed by lock_timeout"
     ],
     "versionNotes": [
-      "statement_timeout since 8.3; lock_timeout since 9.3"
+      "statement_timeout since 7.3; lock_timeout since 9.3"
     ],
     "sources": [
       "https://github.com/ankane/strong_migrations",
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED",
+    "_correction": "statement_timeout was introduced in PostgreSQL 7.3 (2002), not 8.3. (lock_timeout since 9.3 is correct.)"
   },
   {
     "id": "long-txn-blocks-ae-forever",
@@ -3888,8 +3780,7 @@
       "https://pganalyze.com/blog/postgres-lock-monitoring",
       "https://www.citusdata.com/blog/2018/02/22/seven-tips-for-dealing-with-postgres-locks/"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "cic-waits-on-long-txn",
@@ -3923,8 +3814,7 @@
       "https://www.postgresql.org/docs/current/sql-createindex.html",
       "https://www.postgresql.org/docs/current/routine-vacuuming.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "long-txn-xmin-horizon-bloat-amplification",
@@ -3953,8 +3843,7 @@
       "https://www.postgresql.org/docs/current/routine-vacuuming.html",
       "https://www.postgresql.org/docs/current/hot-standby.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "replica-ae-replay-cancels-standby-queries",
@@ -3985,8 +3874,7 @@
       "https://www.postgresql.org/docs/current/hot-standby.html",
       "https://www.postgresql.org/docs/current/runtime-config-replication.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "replica-vacuum-cleanup-cancels-standby",
@@ -4014,8 +3902,7 @@
     "sources": [
       "https://www.postgresql.org/docs/current/hot-standby.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "hot-standby-feedback-bloat-feedback-loop",
@@ -4044,8 +3931,7 @@
       "https://www.postgresql.org/docs/current/hot-standby.html",
       "https://www.postgresql.org/docs/current/routine-vacuuming.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "rewrite-ddl-wal-flood-replica-lag",
@@ -4076,8 +3962,7 @@
       "https://www.pgrs.net/2014/05/14/safe-operations-for-high-volume-postgresql/",
       "https://www.postgresql.org/docs/current/hot-standby.html"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   },
   {
     "id": "lock-upgrade-deadlock-in-queue",
@@ -4107,7 +3992,6 @@
       "https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/",
       "https://github.com/ankane/strong_migrations"
     ],
-    "_verdict": "CORRECTED",
-    "_confidence": "high"
+    "_verdict": "VERIFIED"
   }
 ]
