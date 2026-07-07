@@ -25,11 +25,21 @@ export function analyzeSql(sql: string, stats: StatsSnapshot, cal?: Calibration)
   return parse(sql).map((s) => analyzeStatement(s, stats, cal));
 }
 
-function scoreSeverity(dwellSec: number, blast: { blockedQueries: number; queuePileupRisk: string }): Severity {
+function scoreSeverity(
+  dwellSec: number,
+  blast: { blocksReads: boolean; blocksWrites: boolean; blockedQueries: number; queuePileupRisk: string },
+): Severity {
   if (blast.queuePileupRisk === 'high') return 'critical';
-  if (dwellSec >= 1 && blast.blockedQueries >= 100) return 'critical';
-  if (dwellSec >= 0.2 && blast.blockedQueries >= 10) return 'danger';
-  if (blast.blockedQueries >= 1) return 'caution';
+  // Inherent risk: a long *blocking* lock is dangerous even at zero current load —
+  // traffic can arrive mid-window and the queue can pile up. This is what a DBA
+  // fears about a "quiet" migration that still holds ACCESS EXCLUSIVE for 40s.
+  const blockingDwell = blast.blocksReads || blast.blocksWrites ? dwellSec : 0;
+  if (blockingDwell >= 10) return 'critical';
+  if (blockingDwell >= 1) return 'danger';
+  // Current-load risk amplifies on top of that.
+  if (blast.blockedQueries >= 100) return 'critical';
+  if (blast.blockedQueries >= 10) return 'danger';
+  if (blast.blockedQueries >= 1 || blockingDwell >= 0.1) return 'caution';
   return 'safe';
 }
 
