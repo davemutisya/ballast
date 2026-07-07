@@ -1,7 +1,14 @@
 {
-  "name": "ballast",
-  "version": "0.0.0",
-  "private": true,
+  "name": "ballast-pg",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "author": "David Mutisya",
+  "homepage": "https://github.com/Grumpy254/ballast",
+  "repository": { "type": "git", "url": "git+https://github.com/Grumpy254/ballast.git" },
+  "bugs": { "url": "https://github.com/Grumpy254/ballast/issues" },
+  "keywords": ["postgres", "postgresql", "migration", "database", "schema", "ci", "lint", "safety", "zero-downtime", "lock", "dba", "mcp", "ai-agent", "devops"],
+  "publishConfig": { "access": "public" },
   "type": "module",
   "description": "Load-aware migration safety for the AI-agent era. Ballast keeps prod stable when your agent ships a migration.",
   "bin": {
@@ -11,7 +18,8 @@
   "files": [
     "dist",
     "bin",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
