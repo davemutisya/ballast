@@ -68,7 +68,10 @@ server.tool(
   },
 );
 
-function fromStats(s: NonNullable<Parameters<any>[0]>, table: string | null): StatsSnapshot {
+function fromStats(
+  s: { rows: number; bytes?: number; writeTps?: number; readTps?: number; longestRunningTxnSec?: number },
+  table: string | null,
+): StatsSnapshot {
   return {
     table: table ?? 'unknown',
     rows: s.rows,

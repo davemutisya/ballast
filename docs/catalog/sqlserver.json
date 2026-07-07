@@ -1,0 +1,382 @@
+{
+  "db": "SQL Server",
+  "operationFamily": "schema-migration-safety (DDL under load)",
+  "entries": [
+    {
+      "id": "online-index-create",
+      "title": "Create a nonclustered index online (CREATE INDEX WITH ONLINE=ON)",
+      "lockMode": "Intent-Shared (IS) held on the table for the duration; a brief Shared (S) at the very start and a short Schema-Modification (Sch-M) lock during the final swap phase. Concurrent SELECT/INSERT/UPDATE/DELETE permitted throughout.",
+      "costClass": "SCAN",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "CREATE INDEX IX_name ON dbo.tbl (col) WITH (ONLINE = ON, MAXDOP = n);",
+      "safeRewrite": "CREATE INDEX ... WITH (ONLINE = ON). Enterprise Edition / Azure SQL only. The build scans and sorts the base data while allowing concurrent DML; both source and target are maintained during the build. Only the sub-second final metadata swap takes a Sch-M lock. Add WITH (ONLINE = ON, RESUMABLE = ON) for large tables so it can be paused/restarted.",
+      "safeWhen": [
+        "Enterprise Edition, Azure SQL Database, or Azure SQL Managed Instance",
+        "Index does not include LOB (image/ntext/text) columns as key or included columns",
+        "Table is not a local temp table (global temp tables are fine)",
+        "Not run inside a long explicit transaction (S/Sch-M would be held until COMMIT)"
+      ],
+      "unsafeWhen": [
+        "Standard/Web/Express Edition — ONLINE=ON is unsupported and the build silently is unavailable; offline CREATE takes a full-duration Sch-M lock that blocks all reads and writes",
+        "XML indexes and the initial unique clustered index on a view cannot be created online",
+        "Wrapped in BEGIN TRAN ... COMMIT — final S/Sch-M lock is held to end of transaction, blocking the whole table"
+      ],
+      "edgeCases": [
+        "Needs extra disk equal to the new index size, plus a temporary mapping index for clustered builds",
+        "Fully logged; transaction log cannot truncate until complete (unless ADR is enabled) — size the log accordingly",
+        "PostgreSQL contrast: use CREATE INDEX CONCURRENTLY (available in ALL editions, no Enterprise gate). But CONCURRENTLY cannot run inside a transaction block, does TWO table scans, takes only SHARE UPDATE EXCLUSIVE (never ACCESS EXCLUSIVE), and leaves an INVALID index on failure that must be dropped and recreated — SQL Server's online build instead rolls back cleanly and needs no manual cleanup."
+      ],
+      "versionNotes": [
+        "Online index operations: SQL Server 2005+ (Enterprise)",
+        "Parallel online index build (MAXDOP > 1): SQL Server 2016+"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/relational-databases/indexes/guidelines-for-online-index-operations?view=sql-server-ver17",
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/create-index-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "online-index-rebuild",
+      "title": "Rebuild an index online (ALTER INDEX REBUILD WITH ONLINE=ON)",
+      "lockMode": "Intent-Shared (IS) during the rebuild; a brief Shared (S) at start and a short Schema-Modification (Sch-M) lock at the final cutover. The final Sch-M is exclusive of everything — including the Schema-Stability (Sch-S) lock that even NOLOCK/dirty reads acquire.",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER INDEX ix ON dbo.tbl REBUILD WITH (ONLINE = ON, MAXDOP = n);",
+      "safeRewrite": "ALTER INDEX ... REBUILD WITH (ONLINE = ON). Concurrent DML runs for ~99% of the operation; the danger is purely the final Sch-M lock. Pair it with WAIT_AT_LOW_PRIORITY (see wait-at-low-priority entry) so the rebuild does not pile a blocking chain of waiters behind its Sch-M request. Prefer REORGANIZE (always online, no Sch-M, resumable/interruptible) for light-to-moderate fragmentation.",
+      "safeWhen": [
+        "Enterprise / Azure SQL",
+        "Fragmentation high enough to justify a full rebuild vs. a REORGANIZE",
+        "Combined with WAIT_AT_LOW_PRIORITY on busy OLTP tables"
+      ],
+      "unsafeWhen": [
+        "Underlying table has LOB columns and this is the clustered index — clustered rebuild must be OFFLINE",
+        "Non-Enterprise editions — REBUILD is offline and holds a full-duration Sch-M lock (blocks ALL reads and writes)",
+        "High-concurrency OLTP without WAIT_AT_LOW_PRIORITY — the end-of-rebuild Sch-M can't acquire while a long modification query runs, and its high-priority lock request then blocks even dirty reads (Brent Ozar)"
+      ],
+      "edgeCases": [
+        "ALTER INDEX REBUILD always takes a table-level Sch-M regardless of the LOCK_ESCALATION table setting — you cannot opt out of it",
+        "With ALLOW_PAGE_LOCKS = OFF and MAXDOP > 1, online rebuild can actually INCREASE fragmentation",
+        "PostgreSQL contrast: REINDEX historically took ACCESS EXCLUSIVE (blocks reads+writes); PG 12+ adds REINDEX ... CONCURRENTLY (SHARE UPDATE EXCLUSIVE). PG has no equivalent 'brief Sch-M at the end' — CONCURRENTLY avoids the exclusive lock entirely but, like CREATE INDEX CONCURRENTLY, can leave invalid indexes on failure."
+      ],
+      "versionNotes": [
+        "WAIT_AT_LOW_PRIORITY for online rebuild: SQL Server 2014+"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/relational-databases/indexes/guidelines-for-online-index-operations?view=sql-server-ver17",
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-index-transact-sql?view=sql-server-ver17",
+        "https://www.brentozar.com/archive/2015/01/testing-alter-index-rebuild-wait_at_low_priority-sql-server-2014/"
+      ]
+    },
+    {
+      "id": "resumable-index",
+      "title": "Resumable online index create/rebuild (WITH RESUMABLE=ON)",
+      "lockMode": "Same lock profile as the online operation (IS during work, brief S/Sch-M at cutover), but the work is chunked so no single long-running transaction is held.",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER INDEX ix ON dbo.tbl REBUILD WITH (ONLINE = ON, RESUMABLE = ON, MAX_DURATION = 30 MINUTES); -- ALTER INDEX ... PAUSE; / RESUME; / ABORT;",
+      "safeRewrite": "Add RESUMABLE = ON (requires ONLINE = ON). Lets you PAUSE/RESUME across maintenance windows and recover from failover or out-of-disk without restarting from zero. Because work is chunked, the log can truncate frequently — avoids the huge log growth of a single monster rebuild. Inspect sys.index_resumable_operations for state.",
+      "safeWhen": [
+        "Very large indexes where a single online rebuild risks log blowup or won't fit a maintenance window",
+        "You want the option to PAUSE quickly if the online op starts hurting the workload"
+      ],
+      "unsafeWhen": [
+        "SORT_IN_TEMPDB = ON is required (incompatible with RESUMABLE)",
+        "Disabled indexes (not supported)",
+        "Table needs a table-level exclusive (X) lock while paused — e.g. INSERT ... WITH (TABLOCK) — this fails with error 10637 until you resume/complete or drop the TABLOCK hint"
+      ],
+      "edgeCases": [
+        "While paused, BOTH the old and new index exist, consume disk, and must be maintained by every DML — a paused rebuild is not free",
+        "Killing/cancelling a resumable create leaves the operation in a PAUSED state (the partial index persists) rather than rolling all the way back — you must explicitly ABORT to clean up (Brent Ozar)",
+        "PostgreSQL contrast: no built-in resumable index. A failed CREATE INDEX CONCURRENTLY leaves an INVALID index you drop and rebuild from scratch — there is no PAUSE/RESUME."
+      ],
+      "versionNotes": [
+        "Resumable ALTER INDEX REBUILD: SQL Server 2017+",
+        "Resumable CREATE INDEX: SQL Server 2019+",
+        "ELEVATE_RESUMABLE database-scoped config can auto-elevate eligible ops to resumable"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/relational-databases/indexes/guidelines-for-online-index-operations?view=sql-server-ver17",
+        "https://www.brentozar.com/archive/2019/03/what-happens-when-you-cancel-or-kill-a-resumable-index-creation/"
+      ]
+    },
+    {
+      "id": "wait-at-low-priority",
+      "title": "Tame the final Sch-M lock with WAIT_AT_LOW_PRIORITY",
+      "lockMode": "Converts the operation's final Schema-Modification request from a normal LCK_M_SCH_M to a LCK_M_SCH_M_LOW_PRIORITY request, so it does not build a blocking convoy behind itself while it waits.",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER INDEX ix ON dbo.tbl REBUILD WITH (ONLINE = ON, WAIT_AT_LOW_PRIORITY (MAX_DURATION = 5 MINUTES, ABORT_AFTER_WAIT = SELF));",
+      "safeRewrite": "Wrap online REBUILD (or ALTER TABLE ... SWITCH) in WAIT_AT_LOW_PRIORITY. Without it, the end-of-rebuild Sch-M can't be granted while a long modifier runs, and its high-priority request then blocks EVERY newcomer — even NOLOCK reads (which need Sch-S). With it, the Sch-M waits politely at low priority so new short queries slip past. ABORT_AFTER_WAIT = SELF makes the rebuild give up after MAX_DURATION; = BLOCKERS kills the sessions blocking it; = NONE keeps waiting.",
+      "safeWhen": [
+        "High-concurrency OLTP tables where the final Sch-M would otherwise stall the whole table",
+        "SQL Server 2014+ online index rebuild, or ALTER TABLE ... SWITCH PARTITION"
+      ],
+      "unsafeWhen": [
+        "ABORT_AFTER_WAIT = BLOCKERS in production without care — it terminates other user transactions to let the DDL through",
+        "Cannot be combined with online ALTER COLUMN (WAIT_AT_LOW_PRIORITY is not supported there)"
+      ],
+      "edgeCases": [
+        "Only affects the lock-acquisition wait behavior; it does not shorten the Sch-M hold time itself",
+        "PostgreSQL contrast: no direct low-priority-lock equivalent. The idiomatic PG equivalent is to bound the ACCESS EXCLUSIVE wait with SET lock_timeout (and retry), so a DDL that can't grab its lock fast fails instead of queueing behind — and thereby blocking — everyone waiting on that table."
+      ],
+      "versionNotes": [
+        "WAIT_AT_LOW_PRIORITY: SQL Server 2014+"
+      ],
+      "sources": [
+        "https://www.brentozar.com/archive/2015/01/testing-alter-index-rebuild-wait_at_low_priority-sql-server-2014/",
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-index-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "add-nullable-column",
+      "title": "Add a nullable column with no default (or a NULL default)",
+      "lockMode": "Very brief table-level Schema-Modification (Sch-M) lock to update metadata only.",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER TABLE dbo.tbl ADD newcol INT NULL;",
+      "safeRewrite": "Adding a NULL-able column with no default is a pure metadata change in all editions and versions — existing rows are not touched. It still takes a momentary Sch-M lock, so it can queue behind a long-running transaction; keep the ALTER out of long explicit transactions and it is effectively instant.",
+      "safeWhen": [
+        "Column is nullable and has no default (or default is NULL)",
+        "Table is not in the middle of another long transaction that holds incompatible locks"
+      ],
+      "unsafeWhen": [
+        "Adding it inside a big multi-statement transaction — the brief Sch-M then persists to COMMIT and blocks the table"
+      ],
+      "edgeCases": [
+        "Even a 'metadata-only' Sch-M is incompatible with Sch-S, so a blocked ALTER can momentarily stall reads while it waits in the lock queue — use a short lock timeout on hot tables",
+        "PostgreSQL contrast: identical outcome — ADD COLUMN ... NULL with no default is catalog-only. But PG's ALTER TABLE takes ACCESS EXCLUSIVE (blocks reads AND writes) for the instant it holds the lock, and PG has no lock queue jumping, so a long autovacuum or query can make even this fast DDL wait; always set lock_timeout."
+      ],
+      "versionNotes": [
+        "Behavior stable across all supported SQL Server versions"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "add-not-null-column-with-default",
+      "title": "Add a NOT NULL column with a default (metadata-only when default is a runtime constant)",
+      "lockMode": "Brief table-level Sch-M for the metadata-only path; full-duration exclusive Sch-M for the offline rewrite path.",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER TABLE dbo.tbl ADD newcol INT NOT NULL CONSTRAINT DF_newcol DEFAULT (0);",
+      "safeRewrite": "In SQL Server 2012+ Enterprise (and Azure SQL), adding a NOT NULL column with a default that is a RUNTIME CONSTANT completes almost instantly regardless of row count: the default is stored in table metadata and materialized at read time; existing rows are not rewritten. This is automatic — no special syntax. A runtime constant produces the same value for every row (e.g. a literal, GETUTCDATE()). NEWID()/NEWSEQUENTIALID() are NOT runtime constants and force a full offline rewrite.",
+      "safeWhen": [
+        "SQL Server 2012+ Enterprise / Azure SQL",
+        "Default is a runtime constant (literal, GETUTCDATE(), scalar expression identical for all rows)",
+        "Column type does not push the row past the 8060-byte in-row limit"
+      ],
+      "unsafeWhen": [
+        "Default is NEWID(), NEWSEQUENTIALID(), or any per-row (non-runtime-constant) expression — always OFFLINE, full Sch-M held for the entire size-of-data rewrite (blocks all reads and writes)",
+        "Standard/Web/Express edition — the metadata-only optimization is Enterprise-only; the add rewrites every row offline",
+        "Adding the column would exceed the max in-row size and trigger row-overflow / data movement"
+      ],
+      "edgeCases": [
+        "The optimization is a read-time lookup, not a physical backfill; the stored per-row value only materializes when a row is next updated — semantically transparent but worth knowing",
+        "PostgreSQL contrast: PG 11+ has the SAME optimization — ADD COLUMN ... NOT NULL DEFAULT <constant> stores the default in the catalog with no rewrite, in ALL editions (no Enterprise gate). PG's trigger for a rewrite is a VOLATILE default (e.g. random(), and pre-PG-11 any default at all); SQL Server's trigger is a non-runtime-constant default. Net: both engines fast-path constant defaults, but SQL Server gates it on Enterprise while PG does not."
+      ],
+      "versionNotes": [
+        "Metadata-only add of NOT NULL + runtime-constant default: SQL Server 2012+ Enterprise",
+        "PostgreSQL fast-path: PostgreSQL 11+"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "alter-column-widen-variable-length",
+      "title": "Widen a variable-length column (e.g. VARCHAR(100) -> VARCHAR(500))",
+      "lockMode": "Brief table-level Sch-M (metadata-only), or online ALTER with WITH (ONLINE = ON).",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER TABLE dbo.tbl ALTER COLUMN col VARCHAR(500) NOT NULL WITH (ONLINE = ON);",
+      "safeRewrite": "Increasing the length of a variable-length column (var/nvarchar, varbinary) within the same base type is metadata-only — existing rows are not rewritten — but still needs a short Sch-M lock. On 2016+ add WITH (ONLINE = ON) so concurrent readers/writers aren't blocked during that window. Do NOT change nullability in the same statement unless you know the null-check cost.",
+      "safeWhen": [
+        "Same base type, strictly increasing max length",
+        "Not increasing an nvarchar/varchar to (MAX) — MAX changes storage semantics and can force data movement",
+        "Column not referenced by indexes/statistics/computed columns/constraints that would need dropping"
+      ],
+      "unsafeWhen": [
+        "Growing to VARCHAR(MAX)/NVARCHAR(MAX) — changes to LOB storage, not a simple metadata bump",
+        "Column is an index key and you also alter length past index key-size limits"
+      ],
+      "edgeCases": [
+        "Online ALTER COLUMN cannot use WAIT_AT_LOW_PRIORITY, so on a very hot table the brief Sch-M can still queue — use a short lock_timeout/retry",
+        "PostgreSQL contrast: PG 9.2+ makes increasing varchar(n) length (or dropping the length limit) a catalog-only change with NO table scan — very close to SQL Server. But PG has no online ALTER COLUMN modifier; the metadata change still momentarily takes ACCESS EXCLUSIVE. DECREASING the limit rewrites/validates in PG just as it does in SQL Server."
+      ],
+      "versionNotes": [
+        "Online ALTER COLUMN: SQL Server 2016+"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17",
+        "https://www.brentozar.com/archive/2020/04/video-altering-datatypes-with-almost-no-downtime/"
+      ]
+    },
+    {
+      "id": "alter-column-widen-fixed-length",
+      "title": "Widen a fixed-length numeric column (e.g. INT -> BIGINT)",
+      "lockMode": "Full-duration Schema-Modification (Sch-M) rewrite by default; brief Sch-M if the row-compression trick is applied first; or WITH (ONLINE = ON) to allow concurrent access during the rewrite.",
+      "costClass": "REWRITE",
+      "blocksReads": true,
+      "blocksWrites": true,
+      "sqlPattern": "ALTER TABLE dbo.tbl ALTER COLUMN col BIGINT WITH (ONLINE = ON);",
+      "safeRewrite": "INT->BIGINT (or any fixed-length size increase) changes per-row storage, so by default it is a size-of-data REWRITE under a full Sch-M lock that blocks ALL reads and writes. Two mitigations: (1) WITH (ONLINE = ON) — allowed only when the column is NOT part of any index — permits concurrent access during the rewrite; (2) Brent Ozar / Gianluca Sartori trick: first ALTER TABLE ... REBUILD WITH (DATA_COMPRESSION = ROW, ONLINE = ON), after which INT->BIGINT is near-instant metadata-only because row compression already stores the integer in variable width so no page reads are needed (it still takes a brief Sch-M). Row compression only — page compression reverts to a full scan.",
+      "safeWhen": [
+        "You applied ROW compression first (Enterprise, online), making the type change metadata-only",
+        "Or WITH (ONLINE = ON) and the column is not in any index and you can tolerate a long, fully-logged online rewrite"
+      ],
+      "unsafeWhen": [
+        "Plain ALTER COLUMN on a large hot table with no ONLINE and no compression — table is exclusively locked (Sch-M) for the entire rewrite; readers and writers all block",
+        "Column participates in an index — WITH (ONLINE = ON) is rejected for the column change; drop/recreate the dependent index approach instead",
+        "Downsizing (BIGINT->INT) or changing to an unrelated type — always a validating rewrite and can truncate/fail"
+      ],
+      "edgeCases": [
+        "Cannot ALTER COLUMN data type of a column in a partitioned table",
+        "Column referenced by indexes, statistics, computed columns, check constraints, or schema-bound views must have those dropped first",
+        "The zero-downtime alternative for the truly online case is the add-new-column + backfill-in-batches + swap pattern (works on any edition)",
+        "PostgreSQL contrast: PG type changes like int->bigint ALWAYS rewrite the table AND take ACCESS EXCLUSIVE (block reads AND writes) with no online modifier and no compression escape hatch. The portable pattern in PG is the same add-column/backfill/rename dance, or (PG 11+) exploit the fast NOT-NULL-default path. SQL Server's ROW-compression trick and WITH(ONLINE=ON) have no PostgreSQL equivalent."
+      ],
+      "versionNotes": [
+        "WITH (ONLINE = ON) for ALTER COLUMN: SQL Server 2016+",
+        "Row-compression trick requires Enterprise for the online REBUILD"
+      ],
+      "sources": [
+        "https://www.brentozar.com/archive/2020/04/video-altering-datatypes-with-almost-no-downtime/",
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "alter-column-nullability",
+      "title": "Change column nullability (NULL <-> NOT NULL)",
+      "lockMode": "Schema-Modification (Sch-M) lock; scan-and-validate when tightening to NOT NULL; brief when loosening to NULL. WITH (ONLINE = ON) supported with restrictions.",
+      "costClass": "SCAN",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER TABLE dbo.tbl ALTER COLUMN col INT NOT NULL WITH (ONLINE = ON);",
+      "safeRewrite": "Tightening to NOT NULL requires SQL Server to verify no existing NULLs — a full scan (not a rewrite) under Sch-M. Use WITH (ONLINE = ON) on 2016+ to keep the table available during the scan. Loosening NOT NULL -> NULL is cheaper but is NOT supported as an online op when the column is referenced by a nonclustered index. To go NOT NULL safely on a big table, first add a validated CHECK (col IS NOT NULL) constraint, then flip nullability.",
+      "safeWhen": [
+        "2016+ with WITH (ONLINE = ON) and no conflicting index/constraint reference",
+        "Pre-validating with a trusted CHECK constraint before the ALTER"
+      ],
+      "unsafeWhen": [
+        "NOT NULL -> NULL while a nonclustered index references the column — online is unsupported, falls back to a blocking Sch-M",
+        "Online ALTER restricted by a check constraint that is reducing the column precision",
+        "Any nullability change bundled with a type change that itself forces a rewrite"
+      ],
+      "edgeCases": [
+        "WAIT_AT_LOW_PRIORITY is unavailable for online ALTER COLUMN — the Sch-M can still queue on a hot table",
+        "PostgreSQL contrast: PG 12+ lets you SET NOT NULL cheaply by first adding a validated CHECK (col IS NOT NULL) constraint so the SET NOT NULL skips the scan; older PG always full-scanned under ACCESS EXCLUSIVE (blocking reads+writes). DROP NOT NULL is catalog-only in PG. Same 'pre-validate with CHECK' pattern works in both engines."
+      ],
+      "versionNotes": [
+        "Online ALTER COLUMN: SQL Server 2016+",
+        "PostgreSQL CHECK-constraint shortcut for SET NOT NULL: PostgreSQL 12+"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "drop-column",
+      "title": "Drop a column",
+      "lockMode": "Brief table-level Schema-Modification (Sch-M) lock (logical/metadata operation).",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "sqlPattern": "ALTER TABLE dbo.tbl DROP COLUMN col;",
+      "safeRewrite": "DROP COLUMN is a metadata-only operation that logically removes the column under a brief Sch-M lock — it does NOT reclaim the space on data pages. Physical space is reclaimed only by a subsequent index REBUILD (do it ONLINE). Drop any dependent constraints/indexes/defaults first or the drop fails.",
+      "safeWhen": [
+        "Column has no dependent index/constraint/default/computed column (drop those first)",
+        "You schedule a separate ONLINE rebuild afterward to reclaim space"
+      ],
+      "unsafeWhen": [
+        "Dropping a column still referenced by a default/check/FK or index — the statement errors",
+        "Assuming space is freed immediately — it is not, until a rebuild"
+      ],
+      "edgeCases": [
+        "For LOB columns the deallocation of the LOB data can be deferred/background work even though the DDL is fast",
+        "PostgreSQL contrast: PG DROP COLUMN is also metadata-only (marks the column dropped) and takes ACCESS EXCLUSIVE briefly. Like SQL Server, dead space is reclaimed lazily — by VACUUM / row updates in PG, by an index rebuild in SQL Server. Behavior is closely analogous."
+      ],
+      "versionNotes": [
+        "Behavior stable across supported versions"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "lock-escalation-avoidance",
+      "title": "Avoid lock escalation on large DML/backfills",
+      "lockMode": "Row/Key/Page locks escalate to a single table-level Shared (S) or Exclusive (X) lock once thresholds are crossed. Escalation always goes straight to TABLE — never to page. Table-level S/X then blocks concurrent writers (and S blocks writers, X blocks readers+writers).",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "sqlPattern": "WHILE 1=1 BEGIN DELETE TOP (1000) FROM dbo.tbl WHERE cond; IF @@ROWCOUNT < 1000 BREAK; END;",
+      "safeRewrite": "Keep transactions short and the lock footprint small so escalation thresholds are never hit. SQL Server escalates when (a) a single statement acquires > ~5,000 locks on one table/index, or (b) lock memory crosses ~24% of the buffer pool (40% of the 60% lock-memory cap). Chunk big backfills/deletes/updates into batches of a few hundred to a few thousand rows per transaction. Make the predicate SARGable and well-indexed so it doesn't scan and acquire millions of locks.",
+      "safeWhen": [
+        "Batched DML with each batch well under the 5,000-lock threshold, committing between batches",
+        "SARGable, index-supported predicates (no functions/implicit conversions on the column)"
+      ],
+      "unsafeWhen": [
+        "Single mega-statement modifying/scanning 5,000+ rows on one table",
+        "Non-SARGable WHERE (CONVERT/ISNULL/UDF/computation on the column) forcing a full scan and mass lock acquisition",
+        "Bookmark-lookup/nested-loop PREFETCH silently raising a SELECT to repeatable-read and grabbing thousands of key locks"
+      ],
+      "edgeCases": [
+        "ALTER TABLE ... SET (LOCK_ESCALATION = AUTO) escalates to the PARTITION (not table) on partitioned tables; = DISABLE turns it off but Microsoft discourages this (risk of 1204 out-of-lock-memory errors)",
+        "DDL such as ALTER TABLE / ALTER INDEX REBUILD / TRUNCATE always takes a table Sch-M regardless of LOCK_ESCALATION — you can't disable that",
+        "Prevention trick: hold an IX table lock on a second connection (BEGIN TRAN; SELECT ... WITH (UPDLOCK,HOLDLOCK) WHERE 1=0) — escalation to S/X fails against an incompatible IX and the batch keeps using granular locks",
+        "Trace flags 1211/1224 disable escalation instance-wide (blunt instrument; 1211 ignores memory pressure and can OOM the lock manager)",
+        "PostgreSQL contrast: PostgreSQL has NO lock escalation at all — it tracks unlimited row locks out-of-line (in tuple headers / pg_multixact) and never promotes them to a table lock. So this entire failure mode does not exist in PG. Batching in PG is still worth doing, but for DIFFERENT reasons: shorter transactions reduce dead-tuple bloat, shorten how long you hold locks that block DDL, and avoid long-running snapshots that stall autovacuum — not to dodge escalation."
+      ],
+      "versionNotes": [
+        "LOCK_ESCALATION table option (TABLE/AUTO/DISABLE): SQL Server 2008+",
+        "~5,000-lock threshold and 24%/40%/60% memory math per current Microsoft guidance"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/performance/resolve-blocking-problems-caused-lock-escalation",
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17"
+      ]
+    },
+    {
+      "id": "schema-change-under-heavy-load",
+      "title": "Run schema changes safely under heavy OLTP load (general playbook)",
+      "lockMode": "Nearly all ALTER TABLE metadata changes require a table-level Schema-Modification (Sch-M) lock, which is incompatible with EVERYTHING — including the Schema-Stability (Sch-S) lock every query (even NOLOCK) holds while compiling/running. A Sch-M that can't be granted blocks the entire table behind it.",
+      "costClass": "CONDITIONAL",
+      "blocksReads": true,
+      "blocksWrites": true,
+      "sqlPattern": "SET LOCK_TIMEOUT 3000; ALTER TABLE dbo.tbl <change> WITH (ONLINE = ON); -- retry on 1222",
+      "safeRewrite": "Treat the Sch-M lock as the enemy. Playbook: (1) Set a short LOCK_TIMEOUT and retry so a DDL that can't grab Sch-M fails fast instead of forming a blocking convoy. (2) Prefer the metadata-only paths (nullable add, NOT-NULL-with-runtime-constant-default, varchar widen) that hold Sch-M only momentarily. (3) For index work use ONLINE + RESUMABLE + WAIT_AT_LOW_PRIORITY. (4) For unavoidable rewrites (int->bigint, retype), use the add-column/backfill-in-batches/rename swap pattern, or the ROW-compression trick, instead of a blocking in-place ALTER. (5) Never wrap DDL in a long explicit transaction — the Sch-M is held to COMMIT. (6) Set ELEVATE_ONLINE = WHEN_SUPPORTED at the database level so nobody accidentally runs an offline index op.",
+      "safeWhen": [
+        "DDL guarded by a short lock timeout + retry loop, run in its own short transaction",
+        "Metadata-only or ONLINE-capable change chosen wherever possible",
+        "Off-peak window still used for anything that must take a full-duration Sch-M"
+      ],
+      "unsafeWhen": [
+        "In-place ALTER that rewrites the table during peak load (full Sch-M, whole table frozen for reads+writes)",
+        "DDL behind a long-running reporting query — the Sch-M waits, and once queued it blocks all newcomers to the table, even dirty reads",
+        "Batch of several ALTERs in one big transaction"
+      ],
+      "edgeCases": [
+        "Sch-M vs Sch-S is the key incompatibility: even WITH (NOLOCK) readers need Sch-S and are blocked by a waiting Sch-M — 'NOLOCK' does not save you from DDL blocking",
+        "ELEVATE_ONLINE / ELEVATE_RESUMABLE database-scoped configs auto-elevate eligible index DDL to online/resumable",
+        "PostgreSQL contrast: PG's analog is the ACCESS EXCLUSIVE lock (also blocks reads+writes) — same 'queued exclusive lock blocks everyone behind it' hazard, so the same lock_timeout+retry discipline applies. Differences to encode in the abstraction: PG can add many constraints as NOT VALID then VALIDATE separately (SHARE UPDATE EXCLUSIVE) — SQL Server has WITH NOCHECK / WITH CHECK but the trusted-constraint semantics differ; PG has no online index REBUILD Enterprise gate but also no Sch-M/Sch-S split (it has no lock-escalation and no dirty-read Sch-S concept); and PG DDL is transactional/rollback-safe (except CONCURRENTLY), whereas SQL Server DDL is also transactional but online index ops should be kept OUT of explicit transactions to release the Sch-M promptly."
+      ],
+      "versionNotes": [
+        "ELEVATE_ONLINE / ELEVATE_RESUMABLE: SQL Server 2019+",
+        "General Sch-M/Sch-S behavior stable across supported versions"
+      ],
+      "sources": [
+        "https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql?view=sql-server-ver17",
+        "https://learn.microsoft.com/en-us/sql/relational-databases/indexes/guidelines-for-online-index-operations?view=sql-server-ver17",
+        "https://www.brentozar.com/archive/2015/01/testing-alter-index-rebuild-wait_at_low_priority-sql-server-2014/"
+      ]
+    }
+  ]
+}

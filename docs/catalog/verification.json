@@ -1,0 +1,193 @@
+[
+  {
+    "family": "CREATE INDEX — concurrent vs non-concurrent, INVALID index cleanup after a failed CONCURRENTLY build, building a unique index",
+    "verdict": {
+      "verdict": "CONFIRMED",
+      "corrections": [],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-createindex.html",
+        "https://www.postgresql.org/docs/current/sql-dropindex.html",
+        "https://www.postgresql.org/docs/current/explicit-locking.html",
+        "https://www.postgresql.org/docs/14/release-14-2.html"
+      ]
+    }
+  },
+  {
+    "family": "ADD COLUMN (nullable, constant/volatile default, PG11 fast-default, GENERATED/IDENTITY, inline constraints)",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Entry 'add-col-inline-references-fk', unsafeWhen: the claim that the referenced table is locked with 'SHARE ROW EXCLUSIVE + ACCESS EXCLUSIVE on the PK index' is inaccurate. ADD FOREIGN KEY acquires only a SHARE ROW EXCLUSIVE table-level lock on the referenced table; it does not take an ACCESS EXCLUSIVE lock on that table's primary-key index. Drop the 'ACCESS EXCLUSIVE on the PK index' clause. (The SHARE ROW EXCLUSIVE lock and the PG 9.5 reduction from ACCESS EXCLUSIVE are correct.)",
+        "Minor omission (same FK entry, safeRewrite): VALIDATE CONSTRAINT of a foreign key also acquires a ROW SHARE lock on the referenced table in addition to SHARE UPDATE EXCLUSIVE on the altered table. This does not change the 'does not block reads/writes' conclusion (ROW SHARE is non-blocking for readers/writers), but the note is incomplete as written.",
+        "All other verified claims are correct: fast-default (PG 11) applies to non-volatile defaults including STABLE now()/CURRENT_TIMESTAMP; volatile default, stored generated column, identity column, and constrained-domain column each force a full table+index REWRITE (verbatim per current docs); virtual generated columns never require a rewrite and were introduced in PG 18 where VIRTUAL is the default kind; ACCESS EXCLUSIVE lock mode and all cost-class/version-threshold assignments check out."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html (Notes: rewrite conditions, non-volatile default, domain-with-constraints, identity, stored/virtual generated)",
+        "https://www.postgresql.org/docs/current/ddl-generated-columns.html (VIRTUAL is the default generated-column kind in PG 18)",
+        "https://www.postgresql.org/docs/current/explicit-locking.html and PG 9.5 release/lock docs (ADD FOREIGN KEY takes SHARE ROW EXCLUSIVE on referenced table; VALIDATE uses SHARE UPDATE EXCLUSIVE + ROW SHARE on referenced table)"
+      ]
+    }
+  },
+  {
+    "family": "ALTER COLUMN TYPE — safe-vs-rewrite matrix",
+    "verdict": {
+      "verdict": "CONFIRMED",
+      "corrections": [],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/release/12.0/ (verified: timestamp<->timestamptz UTC binary-compatible no-rewrite; ALTER TYPE ADD VALUE in transaction block)",
+        "https://www.postgresql.org/docs/current/sql-altertable.html (verified: binary-coercible no-rewrite exception, text<->varchar sort-identically index exemption, ACCESS EXCLUSIVE default lock)",
+        "PostgreSQL 9.2 release notes (varchar/varbit length-increase and numeric precision-increase no-rewrite optimizations — from knowledge)",
+        "PostgreSQL ALTER TYPE docs (enum ADD VALUE comparison-slowdown / OID-wraparound caveat, no DROP VALUE — from knowledge)"
+      ]
+    }
+  },
+  {
+    "family": "SET NOT NULL and DROP NOT NULL — the PG 12+ fast path using a pre-VALIDATED CHECK constraint",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Entry 'pg18-native-not-null-not-valid' sets blocksReads:false and blocksWrites:false, but its first step (ADD CONSTRAINT ... NOT NULL col NOT VALID) holds an ACCESS EXCLUSIVE lock, which by definition briefly blocks reads AND writes for the catalog write. This contradicts the catalog's own convention: the analogous entry 'add-check-not-null-not-valid' (also a NOT VALID metadata-only ACCESS EXCLUSIVE step) is correctly marked blocksReads:true/blocksWrites:true. To be consistent and literally correct, the ADD portion should be true/true; only the VALIDATE portion (SHARE UPDATE EXCLUSIVE) is non-blocking. Recommend either splitting the combined entry into two rows or marking blocksReads/blocksWrites true to reflect the momentary ACCESS EXCLUSIVE. Confidence medium: this is a modeling/precision issue, not a wrong lock mode — the lockMode field itself correctly names both locks. All other lock modes, cost classes, blocks-flags, version thresholds, and safe/unsafe conditions verified correct against current PostgreSQL docs."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html",
+        "https://www.postgresql.org/docs/current/catalog-pg-constraint.html",
+        "PostgreSQL 18 release notes / feature summary (web search)"
+      ]
+    }
+  },
+  {
+    "family": "DROP COLUMN — metadata-only but ACCESS EXCLUSIVE, app schema cache breakage, TOAST, dependent objects/views",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "versionNotes in drop-column-basic: 'currently supported majors (13-18)' is out of date. PostgreSQL 13 reached end-of-life on 2025-11-13 (final release 13.23). As of the current date (2026-07), the supported majors are 14-18, not 13-18. The rest of the note ('wording verified against postgresql.org/docs/current (v18)') is correct. Behavior is still stable across 14-18, so this is only a supported-version-range factual error, not a behavioral one."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html (lock level, RESTRICT/CASCADE, index auto-drop, space reclamation quotes — all confirmed)",
+        "https://www.postgresql.org/support/versioning/ and PostgreSQL EOL news (PG13 EOL 2025-11-13; supported 14-18 in 2026)"
+      ]
+    }
+  },
+  {
+    "family": "ADD FOREIGN KEY and ADD CHECK CONSTRAINT — the NOT VALID + VALIDATE CONSTRAINT two-step and its lock levels",
+    "verdict": {
+      "verdict": "CONFIRMED",
+      "corrections": [],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html (PG18): confirmed ADD FOREIGN KEY = SHARE ROW EXCLUSIVE on both altered and referenced tables; VALIDATE CONSTRAINT = SHARE UPDATE EXCLUSIVE plus ROW SHARE on referenced table for FK; ADD CHECK = ACCESS EXCLUSIVE; SET NOT NULL skips scan when a valid CHECK proves no NULLs",
+        "https://www.postgresql.org/docs/current/explicit-locking.html: verified conflict matrix supports blocksReads/blocksWrites flags for SHARE ROW EXCLUSIVE, SHARE UPDATE EXCLUSIVE, and ACCESS EXCLUSIVE",
+        "PostgreSQL 9.5 'Reducing lock strength of adding foreign keys' change: confirmed FK ADD reduced from ACCESS EXCLUSIVE to SHARE ROW EXCLUSIVE in 9.5",
+        "Version history: FK NOT VALID since 9.1, CHECK NOT VALID since 9.2, SET NOT NULL scan-skip since PG12 — all consistent"
+      ]
+    }
+  },
+  {
+    "family": "ADD PRIMARY KEY / ADD UNIQUE via CREATE UNIQUE INDEX CONCURRENTLY then ALTER TABLE ... ADD CONSTRAINT ... USING INDEX",
+    "verdict": {
+      "verdict": "CONFIRMED",
+      "corrections": [],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html",
+        "https://www.postgresql.org/docs/current/sql-createindex.html",
+        "https://www.postgresql.org/docs/current/explicit-locking.html (lock conflict matrix, from knowledge)",
+        "PostgreSQL 12 release notes (SET NOT NULL scan-avoidance)"
+      ]
+    }
+  },
+  {
+    "family": "RENAME table/column/constraint/index and ALTER COLUMN SET/DROP DEFAULT — metadata-only but application-breaking",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "rename-index edgeCases is factually inverted. The catalog says 'Renaming an index does NOT rename the constraint that owns it; to rename a PK/UNIQUE constraint use RENAME CONSTRAINT.' The current PostgreSQL docs (sql-alterindex.html) state the opposite: 'If the index is associated with a table constraint (either UNIQUE, PRIMARY KEY, or EXCLUDE), the constraint is renamed as well.' So ALTER INDEX ... RENAME DOES rename the owning constraint — and under the weaker SHARE UPDATE EXCLUSIVE lock. The true asymmetry is: RENAME CONSTRAINT renames the index under ACCESS EXCLUSIVE, whereas RENAME INDEX renames the constraint under SHARE UPDATE EXCLUSIVE. The edge case should be rewritten to reflect that the constraint is renamed as well (and to warn that tooling keying off the constraint name can break even from an ALTER INDEX RENAME).",
+        "Minor (non-lock): versionNotes stating 'all supported versions (13–18)' are stale as of 2026 — PostgreSQL 13 reached end-of-life in November 2025, so the currently-supported set is 14–18. Does not affect any lock-mode/cost claim."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-alterindex.html",
+        "https://www.postgresql.org/docs/12/sql-alterindex.html",
+        "https://www.postgresql.org/docs/11/sql-alterindex.html",
+        "https://www.postgresql.org/docs/current/sql-altertable.html"
+      ]
+    }
+  },
+  {
+    "family": "Partitioning — ATTACH/DETACH PARTITION, CREATE TABLE ... PARTITION OF, partitioned-index builds, and lock behavior",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Entry 'create-index-partitioned-concurrent-workflow', Step 1 lockMode: CREATE INDEX ON ONLY <parent> is stated to take 'brief ACCESS EXCLUSIVE on the parent'. This is wrong — a normal (non-concurrent) CREATE INDEX, including the ON ONLY variant, acquires a SHARE lock (ShareLock) on the target table, which blocks writes but allows concurrent reads. It should read SHARE, not ACCESS EXCLUSIVE. This also contradicts the sibling entry 'create-index-partitioned-recurse', which correctly describes the same CREATE INDEX-on-parent operation as SHARE."
+      ],
+      "confidence": "medium",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-altertable.html",
+        "https://www.postgresql.org/docs/current/sql-createindex.html",
+        "https://www.postgresql.org/docs/current/ddl-partitioning.html",
+        "https://www.postgresql.org/message-id/E1h1w3M-0004ZE-Kt@gemulon.postgresql.org",
+        "https://www.postgresql.org/docs/current/explicit-locking.html"
+      ]
+    }
+  },
+  {
+    "family": "Maintenance — VACUUM FULL, CLUSTER, REINDEX vs REINDEX CONCURRENTLY (ACCESS EXCLUSIVE vs not)",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Minor/non-lock: versionNotes in 'vacuum-full' and 'cluster-table' call versions '13–18' the 'currently supported versions.' As of the current date (July 2026), PostgreSQL 13 is end-of-life (EOL Nov 13, 2025), so the currently supported range is 14–18. The behavioral claim (consistent across those versions) is still accurate; only the 'currently supported' label is stale. All lock modes, cost classes, blocks-reads/writes flags, and version thresholds are otherwise correct."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-reindex.html",
+        "https://www.postgresql.org/docs/13/sql-reindex.html",
+        "https://www.postgresql.org/docs/current/sql-cluster.html",
+        "https://www.postgresql.org/docs/14/release-14.html (via search)"
+      ]
+    }
+  },
+  {
+    "family": "The lock_timeout + statement_timeout + retry-with-backoff safety protocol every migration should follow",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Plain (non-CONCURRENTLY) REINDEX is mis-classified as taking ACCESS EXCLUSIVE on the table and blocking reads. Per the current REINDEX docs, plain REINDEX 'locks out writes but not reads of the index's parent table. It also takes an ACCESS EXCLUSIVE lock on the specific index being processed.' So on the TABLE it takes a SHARE-style lock (blocks writes, allows reads) — ACCESS EXCLUSIVE is on the INDEX only, not the table. Reads of the table proceed; only queries that would use that specific index are blocked. This is the same lock profile the catalog correctly assigns to non-concurrent CREATE INDEX (lockMode SHARE, blocksReads=false, blocksWrites=true).",
+        "Entry 'heavy-access-exclusive-ops' wrongly lumps plain REINDEX with TRUNCATE/CLUSTER/VACUUM FULL/REFRESH MATERIALIZED VIEW under lockMode=ACCESS EXCLUSIVE, blocksReads=true, blocksWrites=true. Those other four correctly take ACCESS EXCLUSIVE on the table and block reads+writes, but plain REINDEX does NOT block table reads. The entry should split REINDEX out (SHARE on table / ACCESS EXCLUSIVE on the index; blocks writes, allows reads). Its practical guidance (prefer REINDEX CONCURRENTLY) still holds because plain REINDEX blocks writes.",
+        "Entry 'reindex-concurrently' repeats the same error in unsafeWhen: 'Plain REINDEX (non-concurrent) takes ACCESS EXCLUSIVE and blocks reads+writes.' Correct statement: plain REINDEX blocks writes but not reads of the table (SHARE-style table lock), taking ACCESS EXCLUSIVE only on the specific index being rebuilt.",
+        "Minor imprecision (entry 'alter-column-type'): the example 'int->bigint pre-14 semantics' implies a version-dependent behavior, but int->bigint always requires a full table REWRITE in every PostgreSQL version (4-byte vs 8-byte on-disk representation); there is no PG14 change that makes it metadata-only. The REWRITE classification itself is correct."
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/sql-reindex.html",
+        "https://www.postgresql.org/docs/current/sql-altertable.html",
+        "https://www.postgresql.org/docs/current/explicit-locking.html",
+        "https://www.postgresql.org/docs/current/sql-createindex.html"
+      ]
+    }
+  },
+  {
+    "family": "Lock-queue and long-transaction interaction, plus replica-lag amplification — the cross-cutting load-aware model",
+    "verdict": {
+      "verdict": "CORRECTED",
+      "corrections": [
+        "Entry 'statement-timeout-vs-lock-timeout', versionNotes: 'statement_timeout since 8.3' is wrong. The statement_timeout GUC was introduced in PostgreSQL 7.3 (2002), not 8.3. (lock_timeout since 9.3 in the same note is correct.)"
+      ],
+      "confidence": "high",
+      "sourcesChecked": [
+        "https://www.postgresql.org/docs/current/hot-standby.html",
+        "https://pgpedia.info/s/statement_timeout.html (via search)",
+        "https://postgresqlco.nf/doc/en/param/statement_timeout/",
+        "PostgreSQL 14 release notes (concurrent index build wait narrowing)",
+        "pganalyze / AWS re:Post — recovery conflict cancellation SQLSTATE 40001",
+        "https://www.postgresql.org/docs/current/explicit-locking.html",
+        "https://www.postgresql.org/docs/current/sql-altertable.html",
+        "https://www.postgresql.org/docs/current/sql-createindex.html"
+      ]
+    }
+  }
+]

@@ -1,0 +1,807 @@
+{
+  "db": "mysql",
+  "operationFamily": "mysql-8.0-online-ddl",
+  "entries": [
+    {
+      "id": "add-column-instant",
+      "title": "Add column (INSTANT)",
+      "sqlPattern": "ALTER TABLE t ADD COLUMN c INT [DEFAULT ...] , ALGORITHM=INSTANT",
+      "lockMode": "NONE (no metadata-lock upgrade beyond the brief exclusive MDL every DDL takes)",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ADD COLUMN c INT DEFAULT 0, ALGORITHM=INSTANT, LOCK=NONE;",
+      "safeWhen": [
+        "Table is not ROW_FORMAT=COMPRESSED and has no FULLTEXT index",
+        "Column can be added at any position (8.0.29+ allows non-trailing; pre-8.0.29 INSTANT only appends at end)",
+        "Fewer than 64 instant-column row versions have accumulated since the last full rebuild"
+      ],
+      "unsafeWhen": [
+        "Table already has 64 accumulated instant row versions (ALTER errors; needs a rebuild e.g. OPTIMIZE/FORCE to reset)",
+        "ROW_FORMAT=COMPRESSED or a FULLTEXT/temp/system table (INSTANT unsupported -> use INPLACE, which rebuilds)",
+        "Adding an AUTO_INCREMENT column (never INSTANT; see add-auto-increment-column)"
+      ],
+      "edgeCases": [
+        "INSTANT is the default algorithm for ADD COLUMN since 8.0.12; server picks it automatically unless you force otherwise",
+        "The change is metadata-only: existing rows are NOT rewritten, the default is materialized lazily on read",
+        "You cannot mix an INSTANT operation with a non-INSTANT one in the same ALTER statement"
+      ],
+      "versionNotes": [
+        "8.0.12: INSTANT introduced (append-only). 8.0.29: add column at any position + drop column made INSTANT, but each such op consumes one of the 64 row versions.",
+        "PostgreSQL contrast: PG 11+ also adds a column with a (even non-constant in 11, constant-only fast path) default as a catalog-only change; but PG DDL is transactional and rollback-able mid-statement, MySQL DDL is NOT (no DDL transaction, partial failure can leave #sql temp artifacts)."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html",
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "add-column-inplace-rebuild",
+      "title": "Add column when INSTANT is unavailable (INPLACE, rebuilds)",
+      "sqlPattern": "ALTER TABLE t ADD COLUMN c ..., ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INPLACE, LOCK=NONE;  -- table is rebuilt online; dwell scales with size",
+      "safeWhen": [
+        "INSTANT is blocked (COMPRESSED row format, FULLTEXT present, or 64-version cap hit) but online rebuild is acceptable",
+        "There is enough free disk for a full second copy of the table + sort files"
+      ],
+      "unsafeWhen": [
+        "Disk headroom is under ~1.2x table size (rebuild needs a full copy)",
+        "Long-running transactions hold the table: the final MDL upgrade at commit can stall behind them and then stall everything else"
+      ],
+      "edgeCases": [
+        "Even INPLACE add-column rebuilds the clustered index, so cost scales with table size despite LOCK=NONE",
+        "innodb_online_alter_log_max_size governs the online change buffer; overflow aborts the ALTER"
+      ],
+      "versionNotes": [
+        "Prefer INSTANT; only falls back to this INPLACE rebuild path when INSTANT preconditions are not met.",
+        "For very large tables where even LOCK=NONE dwell (and the commit-time MDL) is risky, fall back to gh-ost/pt-osc for controlled, throttled, resumable copy."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "drop-column",
+      "title": "Drop column",
+      "sqlPattern": "ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT, LOCK=NONE;  -- 8.0.29+; else INPLACE rebuild",
+      "safeWhen": [
+        "MySQL 8.0.29+ and INSTANT preconditions hold (no COMPRESSED/FULLTEXT, under 64 row-version cap): metadata-only",
+        "Pre-8.0.29 or INSTANT blocked: INPLACE with LOCK=NONE is still online but REWRITES the table"
+      ],
+      "unsafeWhen": [
+        "Dropping a column that is part of an index/FK in a way that forces additional index rebuilds",
+        "64-version cap reached (INSTANT errors -> falls to rebuild)"
+      ],
+      "edgeCases": [
+        "INSTANT drop keeps the physical column data on disk (hidden) until the next full rebuild; consider OPTIMIZE TABLE periodically to reclaim space and reset row-version count"
+      ],
+      "versionNotes": [
+        "8.0.29 made DROP COLUMN eligible for ALGORITHM=INSTANT; before that it is INPLACE and rebuilds.",
+        "PostgreSQL contrast: PG DROP COLUMN is ALWAYS catalog-only (attisdropped) and never rewrites, at any version, but takes a brief ACCESS EXCLUSIVE lock. MySQL only reaches metadata-only on 8.0.29+ and still counts against the 64-version cap."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "rename-column",
+      "title": "Rename column",
+      "sqlPattern": "ALTER TABLE t CHANGE old new SAME_TYPE, ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t CHANGE old_name new_name INT NOT NULL, ALGORITHM=INSTANT, LOCK=NONE;  -- data type MUST stay identical",
+      "safeWhen": [
+        "The data type in the CHANGE clause is byte-for-byte the same as the current one (only the name changes)",
+        "MySQL 8.0.28+ for INSTANT; earlier versions do it INPLACE (still metadata-only, LOCK=NONE)"
+      ],
+      "unsafeWhen": [
+        "The renamed column is referenced by a foreign key, generated column, or view expression (rename may be blocked or require ALGORITHM=COPY)",
+        "You change the type at the same time -> that is a data-type change (COPY), not a rename"
+      ],
+      "edgeCases": [
+        "Renaming a column used in a functional index or CHECK constraint can force COPY"
+      ],
+      "versionNotes": [
+        "8.0.28+: rename column eligible for INSTANT. Pre-8.0.28: INPLACE, metadata-only, LOCK=NONE.",
+        "PostgreSQL contrast: PG ALTER TABLE ... RENAME COLUMN is always a pure catalog change (brief ACCESS EXCLUSIVE), independent of type."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "reorder-column",
+      "title": "Reorder column (AFTER / FIRST)",
+      "sqlPattern": "ALTER TABLE t MODIFY c INT AFTER x, ALGORITHM=INPLACE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t MODIFY c INT AFTER x, ALGORITHM=INPLACE, LOCK=NONE;  -- rebuilds table",
+      "safeWhen": [
+        "Online rebuild dwell is acceptable and disk headroom exists"
+      ],
+      "unsafeWhen": [
+        "Very large table under heavy write load -> use gh-ost/pt-osc for throttled copy"
+      ],
+      "edgeCases": [
+        "Physical reordering forces a clustered-index rebuild; cost scales with size even though LOCK=NONE"
+      ],
+      "versionNotes": [
+        "Never INSTANT: physical row layout changes.",
+        "PostgreSQL contrast: PG has no column reorder at all (column order is fixed by catalog attnum); the operation simply does not exist, so a multi-DB abstraction must gate it as MySQL-only."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "set-drop-column-default",
+      "title": "Set / drop column DEFAULT",
+      "sqlPattern": "ALTER TABLE t ALTER COLUMN c SET DEFAULT 5, ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ALTER COLUMN c SET DEFAULT 5, ALGORITHM=INSTANT, LOCK=NONE;",
+      "safeWhen": [
+        "Always safe: touches only the data dictionary, existing rows unaffected"
+      ],
+      "unsafeWhen": [],
+      "edgeCases": [
+        "Changing the default does NOT backfill existing rows; only future inserts see the new default"
+      ],
+      "versionNotes": [
+        "Metadata-only at all supported 8.0 versions.",
+        "PostgreSQL contrast: identical semantics (catalog-only, brief ACCESS EXCLUSIVE); one of the few operations that behave the same in both."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "change-column-type",
+      "title": "Change column data type (INT->BIGINT, DECIMAL precision, etc.)",
+      "sqlPattern": "ALTER TABLE t MODIFY c BIGINT, ALGORITHM=COPY",
+      "lockMode": "SHARED (LOCK=NONE not permitted; reads allowed, writes blocked)",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "-- Native DDL blocks writes for the whole copy. For a large hot table, run through an online tool:\ngh-ost --alter=\"MODIFY c BIGINT\" ... ;  -- or pt-online-schema-change --alter \"MODIFY c BIGINT\"",
+      "safeWhen": [
+        "Table is small enough that a write-blocking COPY finishes inside your maintenance window",
+        "Or you route it through gh-ost / pt-osc for zero-write-downtime"
+      ],
+      "unsafeWhen": [
+        "Large, write-heavy table with native ALTER: LOCK is at least SHARED for the entire rebuild, blocking all writes for the copy duration",
+        "Narrowing a type where existing data would be truncated/out of range (fails or silently coerces depending on SQL mode)"
+      ],
+      "edgeCases": [
+        "Almost all real type changes are ALGORITHM=COPY and cannot be LOCK=NONE -> this is the #1 reason teams reach for gh-ost/pt-osc",
+        "Changing a column's character set or collation is likewise a rebuild"
+      ],
+      "versionNotes": [
+        "General type change = COPY, no INPLACE, no LOCK=NONE. (Special cases like VARCHAR extension and ENUM append are separate entries and ARE online.)",
+        "PostgreSQL contrast: PG ALTER COLUMN TYPE also rewrites but takes ACCESS EXCLUSIVE (blocks READS too) -- strictly worse than MySQL's SHARED. PG mitigations differ (e.g. add new col + backfill + swap, or binary-coercible no-rewrite cases like varchar(n)->text)."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations",
+        "https://docs.percona.com/percona-toolkit/pt-online-schema-change.html",
+        "https://github.com/github/gh-ost/blob/master/doc/cheatsheet.md"
+      ]
+    },
+    {
+      "id": "extend-varchar",
+      "title": "Extend VARCHAR length (in place)",
+      "sqlPattern": "ALTER TABLE t MODIFY c VARCHAR(255), ALGORITHM=INPLACE",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t MODIFY c VARCHAR(255), ALGORITHM=INPLACE, LOCK=NONE;  -- only when the length-prefix byte count stays the same",
+      "safeWhen": [
+        "Enlarging within the same length-prefix size class: 0-255 bytes uses a 1-byte length prefix, 256+ uses 2 bytes. Growing within a class (e.g. 20 -> 100 for latin1) is metadata-only INPLACE."
+      ],
+      "unsafeWhen": [
+        "Crossing the 255/256-byte boundary (e.g. VARCHAR(200)->VARCHAR(300) in a single-byte charset, or the utf8mb4 equivalent at ~63/64 chars) -> length prefix grows from 1 to 2 bytes -> requires ALGORITHM=COPY, write-blocking",
+        "SHRINKING a VARCHAR is always COPY (never in place)"
+      ],
+      "edgeCases": [
+        "For utf8mb4 (4 bytes/char) the boundary is ~63 vs 64 characters, not 255 -- easy to trip accidentally",
+        "If you cross the boundary and force ALGORITHM=INPLACE, the statement errors rather than silently copying"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG increasing varchar(n) length (or dropping the limit) is a pure catalog change with no rewrite and no boundary rule; MySQL's byte-prefix boundary is a MySQL-specific hazard the abstraction must special-case."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "make-column-nullable",
+      "title": "Make column NULLable (drop NOT NULL)",
+      "sqlPattern": "ALTER TABLE t MODIFY c INT NULL, ALGORITHM=INPLACE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t MODIFY c INT NULL, ALGORITHM=INPLACE, LOCK=NONE;  -- rebuilds table",
+      "safeWhen": [
+        "Online rebuild dwell acceptable; disk headroom exists"
+      ],
+      "unsafeWhen": [
+        "Large hot table -> gh-ost/pt-osc"
+      ],
+      "edgeCases": [
+        "Rebuilds even though it seems trivial, because the InnoDB row format encodes nullability"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG DROP NOT NULL is catalog-only (brief ACCESS EXCLUSIVE), no rewrite -- MySQL rebuilds. Divergent cost class for the same logical change."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "make-column-not-null",
+      "title": "Add NOT NULL to a column",
+      "sqlPattern": "ALTER TABLE t MODIFY c INT NOT NULL, ALGORITHM=INPLACE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "SET SESSION sql_mode='STRICT_ALL_TABLES';\nALTER TABLE t MODIFY c INT NOT NULL, ALGORITHM=INPLACE, LOCK=NONE;  -- rebuilds; requires strict SQL mode",
+      "safeWhen": [
+        "STRICT_TRANS_TABLES or STRICT_ALL_TABLES is enabled AND no existing row holds NULL in the column",
+        "Online rebuild dwell acceptable"
+      ],
+      "unsafeWhen": [
+        "A row already contains NULL (ALTER fails under strict mode; without strict mode NULLs get coerced to the type default -- silent data change)",
+        "Non-strict SQL mode -> INPLACE not permitted, coercion risk"
+      ],
+      "edgeCases": [
+        "Rebuilds the table; combine with a validating pre-check: SELECT 1 FROM t WHERE c IS NULL LIMIT 1;"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG SET NOT NULL scans the table (SHARE ... lock) but does not rewrite; PG 12+ can skip the scan if a matching CHECK (c IS NOT NULL) constraint was pre-validated with NOT VALID + VALIDATE. MySQL always rebuilds and has no NOT VALID equivalent."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "modify-enum-set",
+      "title": "Append values to ENUM / SET",
+      "sqlPattern": "ALTER TABLE t MODIFY c ENUM('a','b','c'), ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t MODIFY c ENUM('a','b','c','d'), ALGORITHM=INSTANT, LOCK=NONE;  -- append only, at the END, without shrinking storage size",
+      "safeWhen": [
+        "Adding members to the END of the ENUM/SET list without exceeding the storage-size boundary (ENUM: 1 byte up to 255 members, 2 bytes beyond)"
+      ],
+      "unsafeWhen": [
+        "Reordering, removing, or renaming members, or inserting in the middle -> changes stored numeric codes -> ALGORITHM=COPY and a data rewrite",
+        "Crossing the 255-member (1->2 byte) boundary -> COPY"
+      ],
+      "edgeCases": [
+        "ENUM values are stored as ordinals; any change that shifts ordinals is a full rewrite"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG enums are a first-class type; ALTER TYPE ... ADD VALUE is catalog-only but cannot run inside a transaction block and (pre-12) the new value could not be used in the same tx. Very different model -- MySQL ENUM is per-column, PG is a shared type."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "add-secondary-index",
+      "title": "Add secondary (B-tree) index",
+      "sqlPattern": "ALTER TABLE t ADD INDEX ix (c), ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "SCAN",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ADD INDEX ix_t_c (c), ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Standard secondary index add: INPLACE, LOCK=NONE, does NOT rebuild the clustered table (builds the index via sort + online log)",
+        "innodb_online_alter_log_max_size is large enough to absorb DML during the build"
+      ],
+      "unsafeWhen": [
+        "Adding a UNIQUE index when duplicate data exists (fails at build/apply time)",
+        "The online change log overflows during a long build on a write-heavy table (ALTER aborts) -> raise innodb_online_alter_log_max_size or use gh-ost/pt-osc",
+        "Adding an index as part of an ALTER that also does a COPY operation -> whole statement becomes COPY"
+      ],
+      "edgeCases": [
+        "Brief exclusive MDL at start and end; the middle (the scan/sort) is concurrent",
+        "This is the canonical 'online' operation and the closest MySQL analog to PG CREATE INDEX CONCURRENTLY"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG needs CREATE INDEX CONCURRENTLY (CIC) to avoid a write lock; CIC does TWO table scans, cannot run in a transaction, and can leave an INVALID index on failure that must be dropped/rebuilt. MySQL's online index build is a single statement with automatic cleanup on failure -- generally easier to operate."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "drop-secondary-index",
+      "title": "Drop secondary index",
+      "sqlPattern": "ALTER TABLE t DROP INDEX ix, ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t DROP INDEX ix_t_c, ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Always online and metadata-only (just unlinks the index from the data dictionary)"
+      ],
+      "unsafeWhen": [
+        "Dropping an index that backs a foreign key -> blocked until you drop the FK (or the FK is on another index)"
+      ],
+      "edgeCases": [
+        "Space is freed asynchronously"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG DROP INDEX takes a brief ACCESS EXCLUSIVE on the table; use DROP INDEX CONCURRENTLY to avoid blocking. MySQL drop-index is already non-blocking."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "rename-index",
+      "title": "Rename index",
+      "sqlPattern": "ALTER TABLE t RENAME INDEX a TO b, ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t RENAME INDEX old_ix TO new_ix, ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Always metadata-only"
+      ],
+      "unsafeWhen": [],
+      "edgeCases": [],
+      "versionNotes": [
+        "PostgreSQL contrast: PG ALTER INDEX ... RENAME TO is catalog-only as well; behavior matches."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "add-fulltext-index",
+      "title": "Add FULLTEXT index",
+      "sqlPattern": "ALTER TABLE t ADD FULLTEXT (c), ALGORITHM=INPLACE, LOCK=SHARED",
+      "lockMode": "SHARED (LOCK=NONE not permitted)",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "ALTER TABLE t ADD FULLTEXT INDEX ft_c (c), ALGORITHM=INPLACE, LOCK=SHARED;",
+      "safeWhen": [
+        "Reads may continue; you accept writes being blocked for the build"
+      ],
+      "unsafeWhen": [
+        "The FIRST fulltext index on a table with no user-defined FTS_DOC_ID column forces a full TABLE REBUILD to add the hidden FTS_DOC_ID (much heavier + still LOCK=SHARED). Subsequent fulltext indexes are cheaper.",
+        "Write availability required during build -> route through gh-ost/pt-osc"
+      ],
+      "edgeCases": [
+        "LOCK=NONE is rejected for FULLTEXT; minimum is SHARED"
+      ],
+      "versionNotes": [
+        "Define a column named FTS_DOC_ID BIGINT UNSIGNED NOT NULL up front to avoid the first-fulltext rebuild.",
+        "PostgreSQL contrast: PG full-text uses GIN/GiST on tsvector and CAN be built with CREATE INDEX CONCURRENTLY (writes allowed). MySQL blocks writes for fulltext -- a real divergence in availability."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "add-spatial-index",
+      "title": "Add SPATIAL index",
+      "sqlPattern": "ALTER TABLE t ADD SPATIAL INDEX (g), ALGORITHM=INPLACE, LOCK=SHARED",
+      "lockMode": "SHARED (LOCK=NONE not permitted)",
+      "costClass": "SCAN",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "ALTER TABLE t ADD SPATIAL INDEX sp_g (g), ALGORITHM=INPLACE, LOCK=SHARED;",
+      "safeWhen": [
+        "Reads continue; writes blocked during build is acceptable"
+      ],
+      "unsafeWhen": [
+        "Write availability required -> gh-ost/pt-osc"
+      ],
+      "edgeCases": [
+        "Column must be NOT NULL to be spatially indexed"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG spatial (GiST/PostGIS) indexes support CREATE INDEX CONCURRENTLY without blocking writes."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "add-primary-key",
+      "title": "Add PRIMARY KEY",
+      "sqlPattern": "ALTER TABLE t ADD PRIMARY KEY (c), ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE (INPLACE) — but full clustered-index rebuild",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ADD PRIMARY KEY (c), ALGORITHM=INPLACE, LOCK=NONE;  -- rebuilds entire table (reclusters every row)",
+      "safeWhen": [
+        "The PK columns are already NOT NULL and hold no duplicates",
+        "Strict SQL mode enabled; disk headroom for a full copy exists; rebuild dwell acceptable"
+      ],
+      "unsafeWhen": [
+        "A PK column contains NULLs: with ALGORITHM=COPY, NULLs are silently converted to type defaults (0/''/0000-00-00) -- data corruption risk. Pre-validate.",
+        "Very large table: reclustering rewrites 100% of rows -> strongly prefer gh-ost/pt-osc for throttling + resumability"
+      ],
+      "edgeCases": [
+        "Adding a PK is the single most expensive 'online' op because the clustered index IS the table; every secondary index is also rebuilt",
+        "Best practice: define the PK in CREATE TABLE, never add later"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG ADD PRIMARY KEY takes ACCESS EXCLUSIVE and scans to build a unique index (blocking reads+writes) unless you first CREATE UNIQUE INDEX CONCURRENTLY then ADD PRIMARY KEY USING INDEX. MySQL keeps LOCK=NONE but pays a full physical recluster; different trade-off."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-primary-key-operations"
+      ]
+    },
+    {
+      "id": "drop-primary-key-alone",
+      "title": "Drop PRIMARY KEY (without adding a new one)",
+      "sqlPattern": "ALTER TABLE t DROP PRIMARY KEY, ALGORITHM=COPY",
+      "lockMode": "SHARED (LOCK=NONE not permitted; COPY only)",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "-- Avoid dropping a PK alone. If you must swap it, drop+add in one statement (INPLACE):\nALTER TABLE t DROP PRIMARY KEY, ADD PRIMARY KEY (new_col), ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Rarely safe on a live table; only in a maintenance window on a small table"
+      ],
+      "unsafeWhen": [
+        "Dropping the PK with nothing to recluster on forces ALGORITHM=COPY and blocks writes for the whole rebuild",
+        "InnoDB will fall back to a hidden 6-byte GEN_CLUST_INDEX -- almost never what you want"
+      ],
+      "edgeCases": [
+        "Combine drop+add into ONE ALTER to stay INPLACE/LOCK=NONE (separate entry: drop-add-primary-key)"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG DROP CONSTRAINT for a PK is catalog-only (brief ACCESS EXCLUSIVE) and does NOT rewrite -- MySQL's COPY rewrite is far heavier."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-primary-key-operations"
+      ]
+    },
+    {
+      "id": "drop-add-primary-key",
+      "title": "Swap PRIMARY KEY (drop + add in one statement)",
+      "sqlPattern": "ALTER TABLE t DROP PRIMARY KEY, ADD PRIMARY KEY (c2), ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t DROP PRIMARY KEY, ADD PRIMARY KEY (c2), ALGORITHM=INPLACE, LOCK=NONE;  -- rebuilds table",
+      "safeWhen": [
+        "New PK columns are NOT NULL and unique; combining into one statement keeps it INPLACE",
+        "Rebuild dwell + disk headroom acceptable"
+      ],
+      "unsafeWhen": [
+        "Splitting into two statements (drop then add) forces the drop to be COPY/write-blocking",
+        "Huge table -> gh-ost/pt-osc (note: gh-ost CANNOT change the PK; pt-osc can if a suitable unique key exists)"
+      ],
+      "edgeCases": [
+        "gh-ost explicitly refuses primary-key changes; pt-osc can do it but needs an existing PK/unique index for its DELETE trigger unless the new PK is built from existing columns"
+      ],
+      "versionNotes": [],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-primary-key-operations",
+        "https://github.com/github/gh-ost/blob/master/doc/cheatsheet.md",
+        "https://docs.percona.com/percona-toolkit/pt-online-schema-change.html"
+      ]
+    },
+    {
+      "id": "add-foreign-key",
+      "title": "Add FOREIGN KEY",
+      "sqlPattern": "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY (c) REFERENCES p(id), ALGORITHM=INPLACE",
+      "lockMode": "NONE (INPLACE) but only when foreign_key_checks=0",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "SET foreign_key_checks=0;\nALTER TABLE t ADD CONSTRAINT fk_t_p FOREIGN KEY (c) REFERENCES p(id), ALGORITHM=INPLACE, LOCK=NONE;\nSET foreign_key_checks=1;",
+      "safeWhen": [
+        "foreign_key_checks=0: INPLACE, LOCK=NONE, no full validation scan (metadata + index requirement) -- BUT you are trusting existing data is referentially valid",
+        "A usable index already exists on the referencing column (else one is created)"
+      ],
+      "unsafeWhen": [
+        "foreign_key_checks=1 (default): adding the FK requires ALGORITHM=COPY -> write-blocking rebuild",
+        "Existing rows violate the constraint while checks are off -> you create an invalid/unenforceable relationship silently"
+      ],
+      "edgeCases": [
+        "Online DDL on a table involved in FK CASCADE/SET NULL can stall waiting on transactions touching the related table",
+        "gh-ost does NOT support FKs at all; pt-osc handles them via --alter-foreign-keys-method (rebuild_constraints | drop_swap | none | auto)"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG can ADD FOREIGN KEY ... NOT VALID (fast, metadata, takes SHARE ROW EXCLUSIVE briefly) then VALIDATE CONSTRAINT (scans referencing rows, only ROW SHARE lock). MySQL has no NOT VALID -- it either validates fully (COPY) or skips validation entirely (checks off). This NOT VALID / VALIDATE two-step is a key PG capability the abstraction must emulate differently on MySQL."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-foreign-key-operations",
+        "https://docs.percona.com/percona-toolkit/pt-online-schema-change.html",
+        "https://github.com/github/gh-ost/blob/master/doc/cheatsheet.md"
+      ]
+    },
+    {
+      "id": "drop-foreign-key",
+      "title": "Drop FOREIGN KEY",
+      "sqlPattern": "ALTER TABLE t DROP FOREIGN KEY fk, ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t DROP FOREIGN KEY fk_t_p, ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Always online and metadata-only; works with foreign_key_checks on or off"
+      ],
+      "unsafeWhen": [
+        "You must reference the CONSTRAINT name (from SHOW CREATE TABLE), not the column or index name"
+      ],
+      "edgeCases": [
+        "The backing index is NOT dropped automatically; drop it in the same statement if desired: DROP FOREIGN KEY fk, DROP INDEX fk"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG DROP CONSTRAINT for an FK is catalog-only too; behavior matches."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-foreign-key-operations"
+      ]
+    },
+    {
+      "id": "change-auto-increment",
+      "title": "Change AUTO_INCREMENT counter",
+      "sqlPattern": "ALTER TABLE t AUTO_INCREMENT=10000, ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t AUTO_INCREMENT=10000, ALGORITHM=INPLACE, LOCK=NONE;",
+      "safeWhen": [
+        "Raising the counter (metadata-only)"
+      ],
+      "unsafeWhen": [
+        "Setting it BELOW the current max value is ignored/clamped -- cannot lower into used range"
+      ],
+      "edgeCases": [
+        "8.0 persists the auto-increment counter across restarts (fixed the historical reset-on-restart bug)"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG uses sequences (ALTER SEQUENCE ... RESTART / setval), decoupled from the table -- a structurally different identity model."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    },
+    {
+      "id": "rename-table",
+      "title": "Rename table",
+      "sqlPattern": "ALTER TABLE t RENAME TO t2, ALGORITHM=INSTANT  (or RENAME TABLE t TO t2)",
+      "lockMode": "NONE (brief exclusive MDL)",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "RENAME TABLE t TO t_old, t_new TO t;  -- atomic multi-table swap",
+      "safeWhen": [
+        "Pure metadata operation; RENAME TABLE can swap multiple tables atomically in one statement"
+      ],
+      "unsafeWhen": [
+        "Privileges/grants are NOT carried to the new name -- reassign manually",
+        "Views/stored programs referencing the old name break"
+      ],
+      "edgeCases": [
+        "The atomic multi-table RENAME is the mechanism gh-ost/pt-osc use for cut-over"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG ALTER TABLE ... RENAME TO is catalog-only but cannot swap two tables atomically in a single statement the way MySQL RENAME TABLE a TO tmp, b TO a can (PG needs a transaction with two renames)."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-table-operations"
+      ]
+    },
+    {
+      "id": "add-virtual-generated-column",
+      "title": "Add VIRTUAL generated column",
+      "sqlPattern": "ALTER TABLE t ADD COLUMN v INT GENERATED ALWAYS AS (c+1) VIRTUAL, ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ADD COLUMN v INT GENERATED ALWAYS AS (c+1) VIRTUAL, ALGORITHM=INSTANT, LOCK=NONE;",
+      "safeWhen": [
+        "VIRTUAL (not stored) columns are computed on read -> metadata-only add/drop"
+      ],
+      "unsafeWhen": [
+        "Adding a VIRTUAL column to a PARTITIONED table is not in-place",
+        "Adding an INDEX on the virtual column at the same time -> that becomes an INPLACE index build (still online) or forces rebuild depending on combination"
+      ],
+      "edgeCases": [
+        "Dropping a VIRTUAL column is likewise INSTANT/metadata"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG only has STORED generated columns (no VIRTUAL until PG 18); adding one rewrites/scans. MySQL's VIRTUAL add being metadata-only has no direct PG equivalent on older versions -- the abstraction cannot assume symmetry."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-generated-column-operations"
+      ]
+    },
+    {
+      "id": "add-stored-generated-column",
+      "title": "Add STORED generated column",
+      "sqlPattern": "ALTER TABLE t ADD COLUMN s INT GENERATED ALWAYS AS (c+1) STORED, ALGORITHM=COPY",
+      "lockMode": "SHARED (COPY only; LOCK=NONE not permitted)",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "-- Small table / window: ALTER TABLE t ADD COLUMN s INT GENERATED ALWAYS AS (c+1) STORED, ALGORITHM=COPY;\n-- Large hot table: use gh-ost/pt-osc.",
+      "safeWhen": [
+        "Small table or maintenance window"
+      ],
+      "unsafeWhen": [
+        "Large table: STORED add is always COPY and write-blocking -> gh-ost/pt-osc",
+        "Reordering a STORED column is also COPY"
+      ],
+      "edgeCases": [
+        "The stored value is materialized for every row at add time, hence the rewrite"
+      ],
+      "versionNotes": [],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-generated-column-operations"
+      ]
+    },
+    {
+      "id": "set-column-visibility",
+      "title": "Toggle column / index visibility (INVISIBLE)",
+      "sqlPattern": "ALTER TABLE t ALTER COLUMN c SET INVISIBLE, ALGORITHM=INSTANT",
+      "lockMode": "NONE",
+      "costClass": "METADATA_ONLY",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t ALTER INDEX ix INVISIBLE, ALGORITHM=INPLACE, LOCK=NONE;  -- test-drop an index safely\nALTER TABLE t ALTER COLUMN c SET INVISIBLE, ALGORITHM=INSTANT, LOCK=NONE;",
+      "safeWhen": [
+        "Metadata-only; invisible indexes let you validate a drop before physically removing it"
+      ],
+      "unsafeWhen": [],
+      "edgeCases": [
+        "Invisible columns (8.0.23+) are excluded from SELECT * but still writable when named"
+      ],
+      "versionNotes": [
+        "Index visibility: 8.0.0+. Column visibility: 8.0.23+.",
+        "PostgreSQL contrast: PG has no invisible-index or invisible-column feature -- MySQL-only; the abstraction must treat it as unsupported on PG."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-index-operations"
+      ]
+    },
+    {
+      "id": "convert-charset",
+      "title": "Convert table CHARACTER SET (e.g. utf8 -> utf8mb4)",
+      "sqlPattern": "ALTER TABLE t CONVERT TO CHARACTER SET utf8mb4, ALGORITHM=INPLACE, LOCK=SHARED",
+      "lockMode": "SHARED when data must be re-encoded (LOCK=NONE not permitted for a real conversion)",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "-- Real re-encoding blocks writes; for a hot table:\ngh-ost --alter=\"CONVERT TO CHARACTER SET utf8mb4\" ...  -- or pt-osc",
+      "safeWhen": [
+        "Setting the DEFAULT charset only (CHARACTER SET =, no CONVERT) when column encodings already match -> lighter",
+        "Small table or maintenance window for a genuine CONVERT"
+      ],
+      "unsafeWhen": [
+        "CONVERT TO CHARACTER SET that actually changes byte encoding rebuilds the table and blocks writes -> gh-ost/pt-osc for large tables",
+        "Widening utf8mb3->utf8mb4 can push indexed VARCHARs past the 767/3072-byte index-prefix limit -> ALTER fails"
+      ],
+      "edgeCases": [
+        "utf8mb4 uses 4 bytes/char, so index key length quadruples vs latin1 -- watch max index length"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG has no per-table character set; encoding is fixed per-database at creation. There is no online equivalent -- changing encoding in PG means a dump/reload. A big structural divergence for the abstraction."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-table-operations"
+      ]
+    },
+    {
+      "id": "change-row-format-or-rebuild",
+      "title": "Change ROW_FORMAT / KEY_BLOCK_SIZE / FORCE rebuild / OPTIMIZE TABLE",
+      "sqlPattern": "ALTER TABLE t ROW_FORMAT=DYNAMIC, ALGORITHM=INPLACE, LOCK=NONE  |  ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE",
+      "lockMode": "NONE",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE;  -- online full rebuild; also resets the 64 instant-column row-version count and defragments",
+      "safeWhen": [
+        "Online rebuild dwell + disk headroom acceptable; useful to reclaim space and reset instant row-versions"
+      ],
+      "unsafeWhen": [
+        "Not in-place for tables with a FULLTEXT index",
+        "Large hot table where even LOCK=NONE dwell/commit MDL is risky -> gh-ost/pt-osc"
+      ],
+      "edgeCases": [
+        "OPTIMIZE TABLE on InnoDB maps to an online ALTER ... FORCE rebuild",
+        "ALTER TABLE t ENGINE=InnoDB (null rebuild) is the same online rebuild"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: the analogous compaction is VACUUM FULL / CLUSTER, which take ACCESS EXCLUSIVE (block reads AND writes); pg_repack is the online third-party tool (the gh-ost/pt-osc analog). MySQL's native FORCE is already LOCK=NONE -- an availability advantage."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-table-operations"
+      ]
+    },
+    {
+      "id": "add-drop-partition-range-list",
+      "title": "Add / drop / truncate partition (RANGE or LIST)",
+      "sqlPattern": "ALTER TABLE t ADD PARTITION (PARTITION p VALUES LESS THAN (...))  |  DROP PARTITION p",
+      "lockMode": "NONE for RANGE/LIST ADD/DROP/TRUNCATE (reduced locking); SHARED/EXCLUSIVE for HASH/KEY reorg",
+      "costClass": "CONDITIONAL",
+      "blocksReads": false,
+      "blocksWrites": false,
+      "safeRewrite": "ALTER TABLE t DROP PARTITION p_2023;  -- RANGE/LIST: no copy of surviving data, near-instant\nALTER TABLE t ADD PARTITION (PARTITION p_2027 VALUES LESS THAN (2028));",
+      "safeWhen": [
+        "RANGE/LIST ADD (of an empty new bound) and DROP/TRUNCATE PARTITION: no copy of existing data, reduced locking",
+        "Rolling-window retention (drop oldest partition) is the canonical cheap operation"
+      ],
+      "unsafeWhen": [
+        "REORGANIZE / COALESCE / repartition (PARTITION BY) copies data and does not allow LOCK=NONE",
+        "HASH/KEY ADD/COALESCE redistributes rows -> LOCK=SHARED or EXCLUSIVE, blocks writes",
+        "DROP PARTITION permanently deletes the rows in it (not just the boundary) -- data loss if misused"
+      ],
+      "edgeCases": [
+        "OPTIMIZE/REBUILD/REMOVE PARTITIONING rebuild the whole table",
+        "gh-ost/pt-osc do not manage partitioning schemes; use native ALTER for these"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG declarative partitioning (10+) uses ATTACH/DETACH PARTITION; DETACH CONCURRENTLY (14+) avoids a long lock. ATTACH validates the partition constraint unless a matching CHECK pre-exists. Different DDL surface entirely from MySQL's ADD/DROP PARTITION."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-partitioning-operations"
+      ]
+    },
+    {
+      "id": "add-auto-increment-column",
+      "title": "Add an AUTO_INCREMENT column",
+      "sqlPattern": "ALTER TABLE t ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY, ALGORITHM=INPLACE, LOCK=SHARED",
+      "lockMode": "SHARED (LOCK=NONE not permitted)",
+      "costClass": "REWRITE",
+      "blocksReads": false,
+      "blocksWrites": true,
+      "safeRewrite": "ALTER TABLE t ADD COLUMN id BIGINT AUTO_INCREMENT PRIMARY KEY, ALGORITHM=INPLACE, LOCK=SHARED;  -- rebuilds; writes blocked",
+      "safeWhen": [
+        "Small table or maintenance window; reads continue"
+      ],
+      "unsafeWhen": [
+        "Large hot table: writes are blocked for the whole rebuild because assigning sequential values requires a consistent snapshot -> gh-ost/pt-osc"
+      ],
+      "edgeCases": [
+        "Never INSTANT and never LOCK=NONE -- the sequential numbering forces at least SHARED even though other ADD COLUMN forms are INSTANT",
+        "Often bundled with adding it as the PK (see add-primary-key), compounding the rebuild"
+      ],
+      "versionNotes": [
+        "PostgreSQL contrast: PG would ADD COLUMN id bigserial / GENERATED ALWAYS AS IDENTITY, which rewrites under ACCESS EXCLUSIVE (blocks reads too). MySQL's SHARED keeps reads alive."
+      ],
+      "sources": [
+        "https://dev.mysql.com/doc/refman/8.0/en/innodb-online-ddl-operations.html#online-ddl-column-operations"
+      ]
+    }
+  ]
+}
