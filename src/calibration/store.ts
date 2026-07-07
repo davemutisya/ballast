@@ -28,17 +28,34 @@ export class CalibrationStore {
 
   get(key: string): LocalStats { return this.data[key] ?? EMPTY; }
 
+  /**
+   * Progressively coarser keys, most-specific first. A single measurement is
+   * folded into all of them so that a table with a *different* fingerprint can
+   * still find the environment's rate at the coarsest matching level before
+   * falling back to the seed. Drop order = weakest rate-determinant first:
+   * index-count → rows → bytes → storage. (engine|cost|kind|version always kept.)
+   */
+  private coarser(fullKey: string): string[] {
+    const p = fullKey.split('|'); // engine|cc|kind|row|byte|index|storage|version  (idx 3,4,5,6)
+    const w = (drop: number[]) => p.map((v, i) => (drop.includes(i) ? '*' : v)).join('|');
+    return [fullKey, w([5]), w([5, 3]), w([5, 3, 4]), w([5, 3, 4, 6])];
+  }
+
   /** Fold in a measured throughput for a bucket (from calibrate or a real migration). */
   observe(key: string, measuredRate: number): void {
-    this.data[key] = record(this.get(key), measuredRate);
+    for (const k of this.coarser(key)) this.data[k] = record(this.get(k), measuredRate);
     if (this.persist) save(this.data);
   }
 
   setPrior(key: string, prior: Gaussian): void { this.priors[key] = prior; }
 
   private rate(engine: string, cc: CostClass, kind: string, fp: TableFingerprint, seed: number) {
-    const key = bucketKey(engine, cc, kind, fp);
-    return combine(this.priors[key] ?? null, seed, this.get(key));
+    const full = bucketKey(engine, cc, kind, fp);
+    for (const k of this.coarser(full)) {
+      const local = this.get(k);
+      if (local.n > 0) return combine(this.priors[k] ?? null, seed, local); // most-specific env data wins
+    }
+    return combine(this.priors[full] ?? null, seed, EMPTY); // cold: prior or seed
   }
 
   /**

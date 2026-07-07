@@ -33,6 +33,16 @@ for (let i = 0; i < noise.length; i++) {
 console.log(`\n→ Converged from the 5×-off seed to the environment's true ~${(TRUE / 1e6).toFixed(0)}M rows/s.`);
 console.log('  A competitor cloning the formula starts at the seed; we start at the crowd prior and converge to truth.\n');
 
+// ── Backoff: one calibration covers differently-shaped tables ────────────────
+console.log('\n══ Progressive backoff: one calibration → many table shapes ══\n');
+const s2 = new CalibrationStore({}, {}, { persist: false });
+const fpA = fingerprint({ rows: 1e6, bytes: 200 * 1024 ** 2, indexCount: 1, storageClass: 'ebs-gp3', engineVersionMajor: '16' });
+for (let i = 0; i < 5; i++) s2.observe(bucketKey('postgres', 'SCAN', 'SET_NOT_NULL', fpA), 25_000_000);
+const fpB = fingerprint({ rows: 100e6, bytes: 50 * 1024 ** 3, indexCount: 5, storageClass: 'ebs-gp3', engineVersionMajor: '16' });
+const rateB = s2.toCalibration('postgres', fpB).scanRowsPerSec;
+console.log(`calibrated once at 1M rows / 1 index = 25M rows/s`);
+console.log(`a 100M-row / 5-index table (same storage+version) resolves ${(rateB / 1e6).toFixed(1)}M rows/s via backoff — not the ${(SEED / 1e6)}M seed.\n`);
+
 const s = stats();
 console.log(`══ Correctness catalog loaded: ${s.total} entries (${s.verified} verified, ${s.corrected} with merged corrections) ══`);
 console.log('  cost classes:', s.byCostClass);
