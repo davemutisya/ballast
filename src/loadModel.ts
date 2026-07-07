@@ -66,7 +66,7 @@ export function predictDwell(
 }
 
 export function predictBlast(
-  lockMode: LockMode,
+  lockMode: string,
   blocksReads: boolean,
   blocksWrites: boolean,
   dwell: DwellPrediction,

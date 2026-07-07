@@ -77,4 +77,6 @@ export interface Finding {
   verdict: string;
   /** Verified-source citation from the correctness catalog (trust). */
   provenance?: string;
+  /** Matched verified-catalog entry id (for `--explain`). */
+  catalogId?: string;
 }

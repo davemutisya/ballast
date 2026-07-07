@@ -8,11 +8,13 @@
 import type { CostClass, LockMode, Statement } from './types.ts';
 
 export interface LockFacts {
-  lockMode: LockMode;
+  lockMode: string; // engine-native label (verbose in the catalog); load model uses the booleans
   costClass: CostClass;
   blocksReads: boolean;
   blocksWrites: boolean;
   safeRewrite: string | null;
+  catalogId?: string;
+  sources?: string[];
 }
 
 /** Only ACCESS EXCLUSIVE blocks a plain SELECT (pg docs 13.3). */

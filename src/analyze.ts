@@ -7,8 +7,14 @@
 import { lockFactsFor, type LockFacts } from './lockModel.ts';
 import { DEFAULT_CALIBRATION, predictBlast, predictDwell, type Calibration } from './loadModel.ts';
 import { parse } from './parse.ts';
-import { find } from './catalog/index.ts';
+import { factsFromEntry, matchEntry } from './catalog/match.ts';
 import type { BlastRadius, DwellPrediction, Finding, Severity, StatsSnapshot, Statement } from './types.ts';
+
+/** Lock facts from the VERIFIED catalog when the statement matches; else the built-in fallback. */
+function factsFor(stmt: Statement): LockFacts {
+  const e = matchEntry(stmt);
+  return e ? factsFromEntry(e) : lockFactsFor(stmt);
+}
 
 const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️', danger: '⛔', critical: '🔥' };
 
@@ -20,18 +26,18 @@ export function analyze(sql: string, stats: StatsSnapshot | null, cal?: Calibrat
 }
 
 export function analyzeStatement(stmt: Statement, stats: StatsSnapshot, cal: Calibration = DEFAULT_CALIBRATION): Finding {
-  const facts = lockFactsFor(stmt);
+  const facts = factsFor(stmt);
   const dwell = predictDwell(facts.costClass, stmt.kind, stats, cal);
   const blast = predictBlast(facts.lockMode, facts.blocksReads, facts.blocksWrites, dwell, stats);
-  return finalize(stmt, facts.lockMode, dwell, blast, scoreSeverity(dwell.seconds, blast), facts.safeRewrite, false);
+  return finalize(stmt, facts, dwell, blast, scoreSeverity(dwell.seconds, blast), false);
 }
 
 /** No DB: flag by lock/cost class, conservatively. The linter-parity baseline. */
 export function structuralFinding(stmt: Statement): Finding {
-  const f = lockFactsFor(stmt);
-  const dwell: DwellPrediction = { costClass: f.costClass, seconds: 0, low: 0, high: 0, basis: 'unknown size — connect --dsn to quantify' };
-  const blast: BlastRadius = { blocksReads: f.blocksReads, blocksWrites: f.blocksWrites, blockedQueries: 0, queuePileupRisk: 'none', queueNote: null };
-  return finalize(stmt, f.lockMode, dwell, blast, structuralSeverity(f), f.safeRewrite, true);
+  const facts = factsFor(stmt);
+  const dwell: DwellPrediction = { costClass: facts.costClass, seconds: 0, low: 0, high: 0, basis: 'unknown size — connect --dsn to quantify' };
+  const blast: BlastRadius = { blocksReads: facts.blocksReads, blocksWrites: facts.blocksWrites, blockedQueries: 0, queuePileupRisk: 'none', queueNote: null };
+  return finalize(stmt, facts, dwell, blast, structuralSeverity(facts), true);
 }
 
 export function analyzeSql(sql: string, stats: StatsSnapshot, cal?: Calibration): Finding[] {
@@ -49,22 +55,28 @@ export function findingLines(f: Finding): string[] {
 // ── internals ────────────────────────────────────────────────────────────────
 
 function finalize(
-  stmt: Statement, lockMode: string, dwell: DwellPrediction, blast: BlastRadius,
-  severity: Severity, safeRewrite: string | null, structural: boolean,
+  stmt: Statement, facts: LockFacts, dwell: DwellPrediction, blast: BlastRadius,
+  severity: Severity, structural: boolean,
 ): Finding {
   return {
-    statement: stmt, lockMode, dwell, blast, severity, safeRewrite,
-    verdict: renderVerdict(stmt, lockMode, dwell, blast, severity, structural),
-    provenance: provenanceFor(stmt.kind) ?? undefined,
+    statement: stmt, lockMode: facts.lockMode, dwell, blast, severity, safeRewrite: facts.safeRewrite,
+    verdict: renderVerdict(stmt, facts.lockMode, dwell, blast, severity, structural),
+    provenance: provenanceFrom(facts),
+    catalogId: facts.catalogId,
   };
+}
+
+function provenanceFrom(facts: LockFacts): string | undefined {
+  const src = facts.sources?.find((s) => s.includes('postgresql.org')) ?? facts.sources?.[0];
+  return src ? `verified vs ${src.replace('https://www.postgresql.org', 'postgresql.org')}` : undefined;
 }
 
 function structuralSeverity(f: LockFacts): Severity {
   if (f.costClass === 'REWRITE') return 'danger';                          // rewrites are always heavy
   if (f.costClass === 'SCAN' && f.blocksWrites) return 'danger';           // scan-bound write block, unknown size
-  if (f.lockMode === 'ACCESS EXCLUSIVE') return 'caution';                 // metadata, but queue risk if a long txn is live
-  if (f.safeRewrite) return 'caution';
-  return 'safe';
+  if (!f.blocksReads && !f.blocksWrites) return 'safe';                    // blocks nothing (e.g. CONCURRENTLY) — safe even with hardening tips
+  if (f.blocksReads && f.blocksWrites) return 'caution';                   // ACCESS EXCLUSIVE metadata — queue risk if a long txn is live
+  return f.safeRewrite ? 'caution' : 'safe';
 }
 
 function scoreSeverity(
@@ -102,13 +114,3 @@ function renderVerdict(
   return line;
 }
 
-/** Cite the verified catalog entry's primary source for this statement kind. */
-export function provenanceFor(kind: string): string | null {
-  const kw: Record<string, string> = {
-    CREATE_INDEX: 'create-index-nonconcurrent', SET_NOT_NULL: 'not null', ALTER_TYPE: 'alter-column-type',
-    DROP_COLUMN: 'drop-column-basic', ADD_COLUMN_DEFAULT_VOLATILE: 'volatile', ADD_COLUMN_DEFAULT_CONST: 'add-col',
-  };
-  const e = find(kw[kind] ?? kind)[0];
-  const src = e?.sources?.find((s) => s.includes('postgresql.org')) ?? e?.sources?.[0];
-  return src ? `verified vs ${src.replace('https://www.postgresql.org', 'postgresql.org')}` : null;
-}
