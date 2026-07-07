@@ -65,11 +65,13 @@ export type Severity = 'safe' | 'caution' | 'danger' | 'critical';
 
 export interface Finding {
   statement: Statement;
-  lockMode: LockMode;
+  lockMode: string; // engine-native label (multi-DB: 'ACCESS EXCLUSIVE' | 'Sch-M' | 'METADATA + COPY')
   dwell: DwellPrediction;
   blast: BlastRadius;
   severity: Severity;
   safeRewrite: string | null;
   /** The one-line, load-aware verdict — the thing static linters can't say. */
   verdict: string;
+  /** Verified-source citation from the correctness catalog (trust). */
+  provenance?: string;
 }
