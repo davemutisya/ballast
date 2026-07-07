@@ -40,13 +40,23 @@ PLAN.md            product/build plan, competitive analysis, kill-signals
 founder-strategy-2026.md  (repo root parent) the decision + do-not-build list
 ```
 
-## Run
+## Use
+```bash
+npm install
+npm run check -- migrations/                       # lint migrations (structural)
+npm run check -- migrations/ --dsn "$DATABASE_URL" # load-aware: weight by real size + live load
+npm run calibrate -- --dsn "$DATABASE_URL"         # learn YOUR db's throughput (local, private)
+```
+`ballast check` exits non-zero on a danger/critical finding → drops into CI as a gate.
+The MCP server (`src/mcp.ts`) exposes `analyze_migration` for the agent loop.
+
+## Dev / validation
 ```bash
 docker compose -f docker-compose.spike.yml up -d   # ephemeral Postgres
-npm install
 npm run spike                    # Spike 1: load-model validation
-npx tsx spike/calibration-test.ts  # calibration convergence + catalog load
-npx tsx spike/mcp-smoke.ts       # call the MCP server over the real protocol
+npm run calib                    # calibration convergence + catalog load
+npm run mcp-smoke                # call the MCP server over the real protocol
+npm run typecheck
 ```
 
 ## The moat (honest)

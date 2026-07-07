@@ -42,6 +42,9 @@ export interface StatsSnapshot {
   longestRunningTxnSec: number;
   /** Whether the migration session sets a low lock_timeout (the queue-pileup guard). */
   lockTimeoutMs: number | null;
+  /** For the calibration fingerprint (optional; snapshot() fills them). */
+  engineVersionMajor?: string;
+  indexCount?: number;
 }
 
 export interface DwellPrediction {

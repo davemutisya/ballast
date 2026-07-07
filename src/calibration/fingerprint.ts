@@ -50,6 +50,17 @@ export function fingerprint(
   };
 }
 
+/** Build a fingerprint from a live StatsSnapshot (shared by calibrate + analyze so keys match). */
+export function fingerprintOf(
+  s: { rows: number; bytes: number; indexCount?: number; engineVersionMajor?: string },
+  storageClass = 'unknown',
+): TableFingerprint {
+  return fingerprint({
+    rows: s.rows, bytes: s.bytes, indexCount: s.indexCount ?? 0,
+    storageClass, engineVersionMajor: s.engineVersionMajor ?? '0',
+  });
+}
+
 /** Order-stable, hashable key. e.g. "postgres|SCAN|CREATE_INDEX|1e7-1e8|1-10GB|3-5|ebs-gp3|16" */
 export function bucketKey(engine: string, costClass: CostClass, statementKind: string, fp: TableFingerprint): string {
   return [engine, costClass, statementKind, fp.rowBucket, fp.byteBucket, fp.indexBucket, fp.storageClass, fp.engineVersionMajor].join('|');

@@ -8,11 +8,14 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 import { analyze, findingLines } from './analyze.ts';
+import { CalibrationStore } from './calibration/store.ts';
+import { fingerprintOf } from './calibration/fingerprint.ts';
 import { parse } from './parse.ts';
 import { snapshot } from './snapshot.ts';
 import type { StatsSnapshot } from './types.ts';
 
 const server = new McpServer({ name: 'ballast', version: '0.0.0' });
+const store = new CalibrationStore();
 
 server.tool(
   'analyze_migration',
@@ -51,7 +54,8 @@ server.tool(
 );
 
 function body(sql: string, snap: StatsSnapshot | null): string {
-  const findings = analyze(sql, snap);
+  const cal = snap ? store.toCalibration('postgres', fingerprintOf(snap)) : undefined;
+  const findings = analyze(sql, snap, cal);
   if (!findings.length) return 'No recognized DDL statements.';
   return findings.map((f) => findingLines(f).join('\n')).join('\n');
 }

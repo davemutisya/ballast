@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { analyze, findingLines } from '../analyze.ts';
+import { CalibrationStore } from '../calibration/store.ts';
+import { fingerprintOf } from '../calibration/fingerprint.ts';
 import { snapshot } from '../snapshot.ts';
 import { parse } from '../parse.ts';
 import type { Finding, Severity } from '../types.ts';
@@ -45,6 +47,7 @@ function collect(paths: string[]): { file: string; sql: string }[] {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const store = new CalibrationStore(); // env-calibrated constants from `ballast calibrate`
   const results: { file: string; findings: Finding[] }[] = [];
 
   for (const { file, sql } of collect(args.paths)) {
@@ -52,7 +55,8 @@ async function main() {
     const findings: Finding[] = [];
     for (const stmt of parse(sql).filter((s) => s.kind !== 'UNKNOWN')) {
       const stats = args.dsn && stmt.table ? await snapshot(args.dsn, args.table ?? stmt.table) : null;
-      findings.push(...analyze(stmt.raw, stats));
+      const cal = stats ? store.toCalibration('postgres', fingerprintOf(stats)) : undefined;
+      findings.push(...analyze(stmt.raw, stats, cal));
     }
     results.push({ file, findings });
   }

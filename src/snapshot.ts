@@ -30,6 +30,12 @@ export async function snapshot(dsn: string, table: string): Promise<StatsSnapsho
 
     const { writeTps, readTps } = await sampleTps(c, table);
 
+    const meta = await c.query(
+      `SELECT (current_setting('server_version_num')::int / 10000)::text AS major,
+              (SELECT count(*) FROM pg_index i JOIN pg_class ic ON ic.oid = i.indrelid WHERE ic.relname = $1)::int AS idx`,
+      [table],
+    );
+
     return {
       table,
       rows: Number(size.rows[0].rows),
@@ -38,6 +44,8 @@ export async function snapshot(dsn: string, table: string): Promise<StatsSnapsho
       readTps,
       longestRunningTxnSec: Number(txn.rows[0].sec),
       lockTimeoutMs: null,
+      engineVersionMajor: String(meta.rows[0].major),
+      indexCount: Number(meta.rows[0].idx),
     };
   } finally {
     await c.end();

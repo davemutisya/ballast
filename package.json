@@ -6,6 +6,7 @@
   "description": "Load-aware migration safety for the AI-agent era. Ballast keeps prod stable when your agent ships a migration.",
   "scripts": {
     "check": "tsx src/cli/check.ts",
+    "calibrate": "tsx src/cli/calibrate.ts",
     "spike": "tsx spike/spike1.ts",
     "calib": "tsx spike/calibration-test.ts",
     "mcp-smoke": "tsx spike/mcp-smoke.ts",
