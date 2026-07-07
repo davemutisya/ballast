@@ -34,6 +34,6 @@ console.log(`\n→ Converged from the 5×-off seed to the environment's true ~${
 console.log('  A competitor cloning the formula starts at the seed; we start at the crowd prior and converge to truth.\n');
 
 const s = stats();
-console.log(`══ Correctness catalog loaded: ${s.total} entries (${s.confirmed} confirmed, ${s.corrected} corrected) ══`);
+console.log(`══ Correctness catalog loaded: ${s.total} entries (${s.verified} verified, ${s.corrected} with merged corrections) ══`);
 console.log('  cost classes:', s.byCostClass);
 console.log('  sample:', catalog()[0]?.id, '—', catalog()[0]?.title);

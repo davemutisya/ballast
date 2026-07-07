@@ -22,8 +22,9 @@ export interface CatalogEntry {
   safeRewrite: string;
   edgeCases?: string[];
   sources?: string[];
-  _verdict?: string;      // CONFIRMED | CORRECTED | UNCERTAIN
+  _verdict?: string;      // VERIFIED (authored + adversarially checked + corrections merged)
   _confidence?: string;   // high | medium | low
+  _correction?: string;   // the verifier's fix, attached for auditability
 }
 
 let cache: CatalogEntry[] | null = null;
