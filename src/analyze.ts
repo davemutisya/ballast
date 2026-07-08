@@ -56,14 +56,27 @@ export function findingLines(f: Finding): string[] {
 
 const RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
 
+// Ops that break running application code even when the lock is instant: DROP
+// COLUMN and RENAMEs invalidate ORM schema caches and raw queries until the app
+// redeploys. That's a deployment hazard, not a lock hazard, so it applies in
+// every mode (an idle database doesn't make it safer) — and Squawk flags these
+// (ban-drop-column, renaming-column/table), so grading them 'safe' would put a
+// hole in the superset claim. RENAME_CONSTRAINT/RENAME_INDEX stay safe: app code
+// doesn't reference those names.
+const APP_HAZARD = new Set(['DROP_COLUMN', 'RENAME_COLUMN', 'RENAME_TABLE']);
+
+/** Floors that lock analysis alone can't justify: destructiveness and app breakage. */
+function floorSeverity(stmt: Statement, facts: LockFacts, severity: Severity): Severity {
+  if (facts.destructive && RANK[severity] < RANK.danger) return 'danger';
+  if (APP_HAZARD.has(stmt.kind) && RANK[severity] < RANK.caution) return 'caution';
+  return severity;
+}
+
 function finalize(
   stmt: Statement, facts: LockFacts, dwell: DwellPrediction, blast: BlastRadius,
   severity: Severity, structural: boolean,
 ): Finding {
-  // Destructive ops (DROP TABLE, TRUNCATE) are dangerous no matter how fast the
-  // lock is — data loss isn't a lock-duration property, so never let them grade
-  // below danger just because they're metadata-only.
-  const sev = facts.destructive && RANK[severity] < RANK.danger ? 'danger' : severity;
+  const sev = floorSeverity(stmt, facts, severity);
   return {
     statement: stmt, lockMode: facts.lockMode, dwell, blast, severity: sev, safeRewrite: facts.safeRewrite,
     verdict: renderVerdict(stmt, facts.lockMode, dwell, blast, sev, structural),
