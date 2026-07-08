@@ -14,6 +14,7 @@ const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️ ', danger
 
 interface Args { paths: string[]; dsn?: string; table?: string; top: number; failOn?: Severity }
 interface Located { f: Finding; file: string }
+interface Bomb { f: Finding; file: string; count: number; w: number }
 
 function parseArgs(argv: string[]): Args {
   const a: Args = { paths: [], top: 10 };
@@ -89,10 +90,20 @@ export async function runAudit(argv: string[]): Promise<number> {
   }
 
   // ── Top time-bombs ──────────────────────────────────────────────────────────
-  const ranked = [...risky].sort((a, b) => weight(b.f, loadAware) - weight(a.f, loadAware));
+  // Identical findings in one file (six non-concurrent indexes on the same table)
+  // collapse to a single ×N entry — a top list padded with repeats reads as noise.
+  const grouped = new Map<string, Bomb>();
+  for (const { f, file } of risky) {
+    const key = `${file}|${f.statement.kind}|${f.statement.table ?? '?'}`;
+    const w = weight(f, loadAware);
+    const g = grouped.get(key);
+    if (!g) grouped.set(key, { f, file, count: 1, w });
+    else { g.count++; if (w > g.w) { g.w = w; g.f = f; } }
+  }
+  const ranked = [...grouped.values()].sort((a, b) => b.w - a.w);
   console.log(`\nTop ${Math.min(args.top, ranked.length)} time-bombs (fix these first):`);
-  ranked.slice(0, args.top).forEach(({ f, file }, i) => {
-    const where = `${rel(file)} — ${f.statement.kind} on ${f.statement.table ?? '?'}`;
+  ranked.slice(0, args.top).forEach(({ f, file, count }, i) => {
+    const where = `${rel(file)} — ${f.statement.kind} on ${f.statement.table ?? '?'}${count > 1 ? `  ×${count}` : ''}`;
     const cost = loadAware
       ? `~${f.dwell.seconds < 1 ? Math.round(f.dwell.seconds * 1000) + 'ms' : f.dwell.seconds.toFixed(1) + 's'} lock` +
         (f.blast.queuePileupRisk !== 'none' ? `, queue risk ${f.blast.queuePileupRisk}` : '')

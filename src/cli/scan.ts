@@ -25,27 +25,36 @@ export function validSeverity(v: string | undefined): Severity {
 // against them runs on an empty table with no concurrent traffic → genuinely
 // safe, however scary the statement looks in isolation. Static linters special-
 // case this; skipping it is the #1 way a migration linter cries wolf.
-const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?["']?([a-z0-9_.]+)/gi;
+// Covers UNLOGGED/TEMP tables and MATERIALIZED VIEWs too: a matview is populated
+// at creation but nothing queries it yet, so same-file indexes block no one.
+const CREATED_RELATION =
+  /create\s+(?:(?:unlogged|temp(?:orary)?|global|local)\s+)*table\s+(?:if\s+not\s+exists\s+)?["']?([a-z0-9_.]+)|create\s+materialized\s+view\s+(?:if\s+not\s+exists\s+)?["']?([a-z0-9_.]+)/gi;
 
 function createdTablesIn(sql: string): Set<string> {
   const s = sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
   const out = new Set<string>();
-  for (const m of s.matchAll(CREATE_TABLE)) out.add(m[1].replace(/^.*\./, '').toLowerCase());
+  for (const m of s.matchAll(CREATED_RELATION)) out.add((m[1] ?? m[2]).replace(/^.*\./, '').toLowerCase());
   return out;
 }
 
-// FK is excluded: it also locks/validates the *referenced* parent, which may be a
-// large pre-existing table even when the child is new. Never under-warn there.
+// Excluded from the exemption:
+//  • ADD_FOREIGN_KEY — it also locks/validates the *referenced* parent, which may
+//    be a large pre-existing table even when the child is new;
+//  • DROP_TABLE / TRUNCATE — the destructive-recreate pattern (DROP TABLE x;
+//    CREATE TABLE x;) destroys a PRE-EXISTING table's data, and the same-file
+//    CREATE would mask it. Never under-warn on a destructive op.
+const NEVER_EXEMPT = new Set(['ADD_FOREIGN_KEY', 'DROP_TABLE', 'TRUNCATE']);
+
 function exemptOnNewTable(findings: Finding[], created: Set<string>): Finding[] {
   if (!created.size) return findings;
   return findings.map((f) => {
     const t = f.statement.table?.replace(/^.*\./, '').toLowerCase();
-    if (!t || !created.has(t) || f.statement.kind === 'ADD_FOREIGN_KEY') return f;
+    if (!t || !created.has(t) || NEVER_EXEMPT.has(f.statement.kind)) return f;
     return {
       ...f,
       severity: 'safe',
       safeRewrite: null,
-      verdict: `${f.statement.kind} on ${f.statement.table} — table is CREATEd in this same migration (empty, no live traffic), so this runs instantly and blocks nothing. Safe.`,
+      verdict: `${f.statement.kind} on ${f.statement.table} — relation is CREATEd in this same migration (no live traffic yet), so nothing running can be blocked. Safe.`,
     };
   });
 }
