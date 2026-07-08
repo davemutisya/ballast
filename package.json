@@ -1,6 +1,6 @@
 {
   "name": "ballast-pg",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "license": "MIT",
   "author": "David Mutisya",
@@ -13,6 +13,7 @@
   "description": "Load-aware migration safety for the AI-agent era. Ballast keeps prod stable when your agent ships a migration.",
   "bin": {
     "ballast": "bin/ballast.js",
+    "ballast-pg": "bin/ballast.js",
     "ballast-mcp": "bin/ballast-mcp.js"
   },
   "files": [
