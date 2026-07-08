@@ -36,7 +36,7 @@ Built and validated end-to-end; adoption + willingness-to-pay is the open questi
 - **Calibration/telemetry** — hierarchical per-environment posterior over a global
   prior; strict opt-in, anonymized, redaction-boundary contract (`src/calibration/`).
 - **MCP server** (`ballast-mcp`) — `analyze_migration` in the agent loop.
-- Publishable as `ballast-pg@0.1.0` (MIT). Not yet published / no users — that's next.
+- Published: [`ballast-pg`](https://www.npmjs.com/package/ballast-pg) (MIT). Finding first users — that's now.
 
 ## Layout
 ```
@@ -68,7 +68,10 @@ written down honestly in **[docs/KNOWN-LIMITATIONS.md](docs/KNOWN-LIMITATIONS.md
 
 ## Use
 ```bash
-npm install && npm run build          # bundle CLI + MCP to dist/ (plain node, catalog inlined)
+npx ballast-pg audit migrations/      # no install: what's already dangerous in your repo?
+
+# or install it:
+npm install -g ballast-pg             # provides `ballast` and `ballast-mcp`
 
 ballast audit migrations/                        # forensic sweep: what's already dangerous in the repo
 ballast audit migrations/ --dsn "$DATABASE_URL"  # ...ranked by real blast radius at today's scale
@@ -76,8 +79,8 @@ ballast check migrations/                        # gate one change (structural);
 ballast check migrations/ --dsn "$DATABASE_URL"  # load-aware: weight by real size + live load
 ballast calibrate --dsn "$DATABASE_URL"          # learn YOUR db's throughput (local, private)
 ```
-(From the repo without a global install: `node bin/ballast.js check migrations/`, or
-`npm run check -- migrations/`.) `ballast check` exits non-zero on a danger/critical
+(From a repo checkout: `npm install && npm run build`, then `node bin/ballast.js ...`.)
+`ballast check` exits non-zero on a danger/critical
 finding → drops into CI as a gate. The `ballast-mcp` bin exposes `analyze_migration`
 for the agent loop — setup in **[docs/MCP.md](docs/MCP.md)** (Cursor / Claude Code / VS Code).
 
