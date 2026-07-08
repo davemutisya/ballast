@@ -54,7 +54,7 @@ function exemptOnNewTable(findings: Finding[], created: Set<string>): Finding[] 
       ...f,
       severity: 'safe',
       safeRewrite: null,
-      verdict: `${f.statement.kind} on ${f.statement.table} — relation is CREATEd in this same migration (no live traffic yet), so nothing running can be blocked. Safe.`,
+      verdict: `✅ ${f.statement.kind} on ${f.statement.table} — relation is CREATEd in this same migration (no live traffic yet), so nothing running can be blocked. Safe.`,
     };
   });
 }
