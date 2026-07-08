@@ -51,21 +51,20 @@ bin/              ballast, ballast-mcp
 spike/            Spike 1 (load model) + calibration self-test + MCP smoke test
 examples/         sample migrations
 docs/
-  blog/           incident encyclopedia (SEO content)
-  launch/         Show HN + Reddit + design-partner outreach
-  ci/             GitHub Action for the migration gate
-  strategy/       GTM.md, MONETIZATION.md
-  architecture/   DESIGN.md (telemetry corpus + multi-DB abstraction)
-  catalog/        verification results, MySQL + SQL Server catalogs
-  VISION.md       roadmap, moat, crystal-ball scenarios, execution contract
+  MCP.md              set up Ballast in the agent loop (Cursor / Claude Code / VS Code)
+  KNOWN-LIMITATIONS.md  honest caveats — read before trusting a verdict
+  blog/               incident encyclopedia (SEO content)
+  ci/                 GitHub Action for the migration gate
+  architecture/       DESIGN.md (telemetry corpus + multi-DB abstraction)
+  catalog/            verification results, MySQL + SQL Server catalogs
 PLAN.md · SPIKE1-RESULTS.md
 ```
 
 ## Where this is going
-Short version: OSS adoption now (the `audit` hook + agent-loop MCP + a free PR-comment
-GitHub Action), paid enforcement + connected-mode accuracy later, migration-safety as
-CI infrastructure eventually. Honest odds, the moat mechanics, and the anti-abandonment
-execution contract are in **[docs/VISION.md](docs/VISION.md)**.
+OSS adoption now (the `audit` hook + agent-loop MCP + a free PR-comment GitHub Action),
+paid enforcement + connected-mode accuracy later, migration-safety as CI infrastructure
+eventually. What it can't do yet — and where the load-aware edge is still unproven — is
+written down honestly in **[docs/KNOWN-LIMITATIONS.md](docs/KNOWN-LIMITATIONS.md)**.
 
 ## Use
 ```bash
@@ -80,7 +79,7 @@ ballast calibrate --dsn "$DATABASE_URL"          # learn YOUR db's throughput (l
 (From the repo without a global install: `node bin/ballast.js check migrations/`, or
 `npm run check -- migrations/`.) `ballast check` exits non-zero on a danger/critical
 finding → drops into CI as a gate. The `ballast-mcp` bin exposes `analyze_migration`
-for the agent loop (Cursor / Claude Code / Copilot).
+for the agent loop — setup in **[docs/MCP.md](docs/MCP.md)** (Cursor / Claude Code / VS Code).
 
 ## Dev / validation
 ```bash
@@ -96,4 +95,6 @@ The code is not the moat — a competitor rebuilds it in an afternoon. The moat 
 three things earned over time: (1) the **calibration corpus** (per-environment +
 crowd-primed accuracy no clone can match), (2) the **correctness catalog** kept
 right where a generic LLM is subtly wrong, and (3) **trust** — never wrong about a
-dangerous migration. See `docs/strategy/GTM.md`.
+dangerous migration. The honest caveat: today only the *local* calibration is built;
+the cross-user corpus is unproven (see
+[KNOWN-LIMITATIONS §3](docs/KNOWN-LIMITATIONS.md#3-the-telemetry-corpus-is-a-design-not-a-dataset--the-moat-is-unbuilt)).
