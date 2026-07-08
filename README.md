@@ -17,7 +17,13 @@ Built and validated end-to-end; adoption + willingness-to-pay is the open questi
   unsafe type changes, `ADD CHECK`/`FK`/`PRIMARY KEY`/`UNIQUE` (with `NOT VALID`
   de-escalation), `RENAME`, `REINDEX`, `VACUUM FULL`, defaults — each bound to a
   verified catalog entry with a safe rewrite and a source citation. `--explain`
-  shows the depth. Exits non-zero on danger → CI gate (`docs/ci/`).
+  shows the depth. Exits non-zero on danger → CI gate (`docs/ci/`). Won't cry wolf:
+  an index/constraint on a table `CREATE`d in the same migration is empty-table-safe
+  and graded accordingly.
+- **`ballast audit`** — the forensic sweep. Points at your *whole* migration history
+  and reports the dangerous changes already in the repo, ranked by real blast radius
+  at today's scale (with `--dsn`). A report, not a gate — the best first run. On the
+  66-migration BomaOS history it surfaces 18 genuine time-bombs out of 134 statements.
 - **Load-aware (`--dsn`)** — a read-only snapshot weights each finding by real table
   size + live transaction state. Spike 1 validated the model (CV ~10%, predictions
   in-band); the same `CREATE INDEX` is safe on 10 rows, critical on 3M. See
@@ -35,7 +41,7 @@ Built and validated end-to-end; adoption + willingness-to-pay is the open questi
 ## Layout
 ```
 src/
-  cli/            check.ts, calibrate.ts, index.ts   (the `ballast` command)
+  cli/            check.ts, audit.ts, calibrate.ts, scan.ts, index.ts   (the `ballast` command)
   analyze.ts, lockModel.ts, loadModel.ts, parse.ts, snapshot.ts, types.ts   core
   catalog/        124 verified entries (postgres.generated.json) + loader + matcher
   calibration/    redaction-boundary contract + hierarchical calibration + store
@@ -58,7 +64,9 @@ PLAN.md · SPIKE1-RESULTS.md
 ```bash
 npm install && npm run build          # bundle CLI + MCP to dist/ (plain node, catalog inlined)
 
-ballast check migrations/                        # lint (structural); --explain for verified detail
+ballast audit migrations/                        # forensic sweep: what's already dangerous in the repo
+ballast audit migrations/ --dsn "$DATABASE_URL"  # ...ranked by real blast radius at today's scale
+ballast check migrations/                        # gate one change (structural); --explain for verified detail
 ballast check migrations/ --dsn "$DATABASE_URL"  # load-aware: weight by real size + live load
 ballast calibrate --dsn "$DATABASE_URL"          # learn YOUR db's throughput (local, private)
 ```

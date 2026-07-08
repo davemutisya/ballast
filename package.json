@@ -24,6 +24,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsx src/cli/index.ts check",
+    "audit": "tsx src/cli/index.ts audit",
     "calibrate": "tsx src/cli/index.ts calibrate",
     "spike": "tsx spike/spike1.ts",
     "calib": "tsx spike/calibration-test.ts",
