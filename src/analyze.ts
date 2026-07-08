@@ -75,11 +75,15 @@ function structuralSeverity(f: LockFacts): Severity {
   if (f.costClass === 'REWRITE') return 'danger';                          // rewrites are always heavy
   if (f.costClass === 'SCAN' && f.blocksWrites) return 'danger';           // scan-bound write block, unknown size
   if (!f.blocksReads && !f.blocksWrites) return 'safe';                    // blocks nothing (e.g. CONCURRENTLY)
-  // Brief metadata-only ACCESS EXCLUSIVE: safe by default (don't cry wolf like on
-  // a plain ADD COLUMN); caution only if the catalog gives it a real safe-rewrite
-  // (a known hazard, e.g. DROP COLUMN's app-cache / deploy-first). The live
-  // queue-pileup risk is caught in --dsn mode when a long txn is actually present.
-  return f.safeRewrite ? 'caution' : 'safe';
+  // Metadata-only ops (ADD/DROP COLUMN, SET/DROP DEFAULT, RENAME) are instant in
+  // isolation — a static linter can't honestly call them anything but safe, and
+  // grading some 'caution' and their siblings 'safe' (the old safeRewrite-string
+  // heuristic did exactly that) is crying wolf. The genuine hazard is queue-pileup
+  // when a long txn is live; that's a property of load, not the SQL, and --dsn mode
+  // catches and escalates it (see scoreSeverity). Deploy-first / rename-breakage
+  // caveats stay in the verdict + --explain, not in the severity.
+  if (f.costClass === 'METADATA_ONLY') return 'safe';
+  return f.safeRewrite ? 'caution' : 'safe';                              // SCAN blocking reads only, CONDITIONAL
 }
 
 function scoreSeverity(
