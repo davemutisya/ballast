@@ -107,5 +107,5 @@ against the official docs.
 npx ballast-pg check migrations/ --dsn "$DATABASE_URL"
 ```
 
-*Next in the encyclopedia: why `ADD COLUMN ... NOT NULL DEFAULT` is safe on Postgres
-11+ — unless the default is `now()`.*
+*Next in the encyclopedia: why `ADD COLUMN ... NOT NULL DEFAULT now()` is safe on
+Postgres 11+ — and the near-identical default that rewrites your whole table.*

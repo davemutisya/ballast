@@ -1,14 +1,36 @@
 {
   "name": "ballast-pg",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": false,
   "license": "MIT",
   "author": "David Mutisya",
   "homepage": "https://github.com/davemutisya/ballast",
-  "repository": { "type": "git", "url": "git+https://github.com/davemutisya/ballast.git" },
-  "bugs": { "url": "https://github.com/davemutisya/ballast/issues" },
-  "keywords": ["postgres", "postgresql", "migration", "database", "schema", "ci", "lint", "safety", "zero-downtime", "lock", "dba", "mcp", "ai-agent", "devops"],
-  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davemutisya/ballast.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davemutisya/ballast/issues"
+  },
+  "keywords": [
+    "postgres",
+    "postgresql",
+    "migration",
+    "database",
+    "schema",
+    "ci",
+    "lint",
+    "safety",
+    "zero-downtime",
+    "lock",
+    "dba",
+    "mcp",
+    "ai-agent",
+    "devops"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "description": "Load-aware migration safety for the AI-agent era. Ballast keeps prod stable when your agent ships a migration.",
   "bin": {
@@ -35,6 +57,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "libpg-query": "^17.7.3",
     "pg": "^8.12.0",
     "zod": "^4.4.3"
   },

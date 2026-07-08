@@ -65,10 +65,13 @@ betting the pricing on it. See [VISION §4](VISION.md) and the kill criteria in 
 
 ## 4. Smaller gaps (tracked)
 
-- **Unrecognized DDL passes the gate.** The parser is a regex *recognizer*, not a real
-  grammar. It's a superset of Squawk, but unusual DDL can be `UNKNOWN` and is skipped
-  silently. `DROP TABLE` / `TRUNCATE` are now caught; the general case isn't. Roadmap:
-  real parser + a "not analyzed" note in output so silence is visible.
+- ~~**Unrecognized DDL passes the gate.**~~ **Resolved in 0.2.0:** Ballast now parses
+  with `libpg_query` — PostgreSQL's own parser — so dollar-quoted bodies, multi-command
+  ALTERs, and schema-qualified names are handled by the real grammar, and any statement
+  we can't classify is *reported* ("N statements could NOT be analyzed"), never silently
+  skipped. Still true: a statement type we haven't mapped isn't *analyzed* (it's
+  disclosed), and ORM migration formats (Rails/Django/Prisma source files) aren't read —
+  point Ballast at the generated SQL.
 - **No credential-free stats path yet.** Load-aware mode needs a read-only DSN today;
   the `ballast snapshot` export + `--stats-file` (so an agent never needs *any* prod
   access) is designed but not built — it slightly undercuts the safety story until

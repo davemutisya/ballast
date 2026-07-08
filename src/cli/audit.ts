@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 
-import { scan, validSeverity } from './scan.ts';
+import { scan, unanalyzedLines, validSeverity } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -57,10 +57,11 @@ export async function runAudit(argv: string[]): Promise<number> {
   for (const { f } of flat) tally[f.severity]++;
   const tables = new Set(flat.map((x) => x.f.statement.table ?? '?'));
 
+  const benign = results.reduce((s, r) => s + r.benign, 0);
   console.log(`\nBallast audit — ${rel(args.paths[0] ?? '<stdin>')}`);
   console.log(
-    `Scanned ${results.length} migration(s), ${flat.length} recognized statement(s) across ` +
-      `${tables.size} table(s).  ${loadAware ? '[load-aware — weighted by live production]' : '[structural — pass --dsn to weight by real size + load]'}\n`,
+    `Scanned ${results.length} migration(s): ${flat.length} DDL statement(s) across ` +
+      `${tables.size} table(s)${benign ? ` (+ ${benign} benign)` : ''}.  ${loadAware ? '[load-aware — weighted by live production]' : '[structural — pass --dsn to weight by real size + load]'}\n`,
   );
 
   const headline = (['critical', 'danger', 'caution', 'safe'] as Severity[])
@@ -70,7 +71,9 @@ export async function runAudit(argv: string[]): Promise<number> {
   console.log(headline || 'nothing recognized');
 
   if (!risky.length) {
-    console.log('\nNo latent risks found in your migration history. Clean bill of health.\n');
+    const un0 = unanalyzedLines(results);
+    if (un0.length) console.log('\n' + un0.join('\n'));
+    console.log(`\nNo latent risks found in your migration history${un0.length ? ' (in what was analyzable)' : ''}. Clean bill of health.\n`);
     return decideExit(tally, args.failOn);
   }
 
@@ -114,6 +117,8 @@ export async function runAudit(argv: string[]): Promise<number> {
 
   console.log('\nFix any one with:  ballast check <file> --explain   (shows the verified safe rewrite)');
   if (!loadAware) console.log('Re-run with --dsn "$DATABASE_URL" to rank these by real blast radius at today\'s scale.');
+  const un = unanalyzedLines(results);
+  if (un.length) console.log('\n' + un.join('\n'));
   console.log();
 
   return decideExit(tally, args.failOn);

@@ -1,17 +1,26 @@
 // Shared file-gathering + analysis used by both `check` (gate) and `audit`
-// (report), so they can never diverge.
+// (report), so they can never diverge. Parses each file ONCE with the real
+// grammar; benign and unanalyzed statements are counted and surfaced — nothing
+// is silently skipped.
 
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { analyze } from '../analyze.ts';
+import { analyzeFinding } from '../analyze.ts';
 import { CalibrationStore } from '../calibration/store.ts';
 import { fingerprintOf } from '../calibration/fingerprint.ts';
-import { parse } from '../parse.ts';
+import { isAnalyzable, parse } from '../parse.ts';
 import { snapshot } from '../snapshot.ts';
-import type { Finding, Severity } from '../types.ts';
+import type { Finding, Severity, Statement } from '../types.ts';
 
-export interface FileFindings { file: string; findings: Finding[] }
+export interface FileFindings {
+  file: string;
+  findings: Finding[];
+  /** Recognized statements with no table-lock risk (DML, functions, grants, CREATE TABLE…). */
+  benign: number;
+  /** Statements we could not classify — callers MUST show these. */
+  unanalyzed: Statement[];
+}
 
 const SEVERITIES: Severity[] = ['safe', 'caution', 'danger', 'critical'];
 
@@ -21,22 +30,12 @@ export function validSeverity(v: string | undefined): Severity {
   throw new Error(`invalid severity "${v ?? ''}" — expected one of: ${SEVERITIES.join(', ')}`);
 }
 
-// Tables born in this same migration file: any index/constraint/column change
-// against them runs on an empty table with no concurrent traffic → genuinely
-// safe, however scary the statement looks in isolation. Static linters special-
-// case this; skipping it is the #1 way a migration linter cries wolf.
-// Covers UNLOGGED/TEMP tables and MATERIALIZED VIEWs too: a matview is populated
-// at creation but nothing queries it yet, so same-file indexes block no one.
-const CREATED_RELATION =
-  /create\s+(?:(?:unlogged|temp(?:orary)?|global|local)\s+)*table\s+(?:if\s+not\s+exists\s+)?["']?([a-z0-9_.]+)|create\s+materialized\s+view\s+(?:if\s+not\s+exists\s+)?["']?([a-z0-9_.]+)/gi;
-
-function createdTablesIn(sql: string): Set<string> {
-  const s = sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
-  const out = new Set<string>();
-  for (const m of s.matchAll(CREATED_RELATION)) out.add((m[1] ?? m[2]).replace(/^.*\./, '').toLowerCase());
-  return out;
-}
-
+// Relations born in this same migration file (tables AND matviews, from the parse
+// tree — not regex): any index/constraint/column change against them runs on an
+// object nothing references yet, so no pre-existing traffic can block it or be
+// blocked by it. Skipping this special case is the #1 way a migration linter
+// cries wolf.
+//
 // Excluded from the exemption:
 //  • ADD_FOREIGN_KEY — it also locks/validates the *referenced* parent, which may
 //    be a large pre-existing table even when the child is new;
@@ -45,14 +44,18 @@ function createdTablesIn(sql: string): Set<string> {
 //    CREATE would mask it. Never under-warn on a destructive op.
 const NEVER_EXEMPT = new Set(['ADD_FOREIGN_KEY', 'DROP_TABLE', 'TRUNCATE']);
 
+function bareName(t: string | null | undefined): string | null {
+  return t ? t.replace(/^.*\./, '').toLowerCase() : null;
+}
+
 function exemptOnNewTable(findings: Finding[], created: Set<string>): Finding[] {
   if (!created.size) return findings;
   return findings.map((f) => {
-    const t = f.statement.table?.replace(/^.*\./, '').toLowerCase();
+    const t = bareName(f.statement.table);
     if (!t || !created.has(t) || NEVER_EXEMPT.has(f.statement.kind)) return f;
     return {
       ...f,
-      severity: 'safe',
+      severity: 'safe' as Severity,
       safeRewrite: null,
       verdict: `✅ ${f.statement.kind} on ${f.statement.table} — relation is CREATEd in this same migration (no live traffic yet), so nothing running can be blocked. Safe.`,
     };
@@ -75,14 +78,37 @@ export async function scan(paths: string[], dsn?: string, table?: string): Promi
   const store = new CalibrationStore(); // env-calibrated constants from `ballast calibrate`
   const results: FileFindings[] = [];
   for (const { file, sql } of collect(paths)) {
-    const created = createdTablesIn(sql);
+    const stmts = await parse(sql);
+    const created = new Set(
+      stmts.filter((s) => s.kind === 'CREATE_TABLE' || s.kind === 'CREATE_MATVIEW')
+        .map((s) => bareName(s.table)).filter((t): t is string => !!t),
+    );
     const findings: Finding[] = [];
-    for (const stmt of parse(sql).filter((s) => s.kind !== 'UNKNOWN')) {
+    for (const stmt of stmts.filter(isAnalyzable)) {
+      // A migration file may touch several tables; snapshot per statement's table.
       const stats = dsn && stmt.table ? await snapshot(dsn, table ?? stmt.table) : null;
       const cal = stats ? store.toCalibration('postgres', fingerprintOf(stats)) : undefined;
-      findings.push(...analyze(stmt.raw, stats, cal));
+      findings.push(analyzeFinding(stmt, stats, cal));
     }
-    results.push({ file, findings: exemptOnNewTable(findings, created) });
+    results.push({
+      file,
+      findings: exemptOnNewTable(findings, created),
+      benign: stmts.filter((s) => !isAnalyzable(s) && s.kind !== 'UNANALYZED').length,
+      unanalyzed: stmts.filter((s) => s.kind === 'UNANALYZED'),
+    });
   }
   return results;
+}
+
+/** One consistent unanalyzed-statements block for check and audit. */
+export function unanalyzedLines(results: FileFindings[]): string[] {
+  const all = results.flatMap((r) => r.unanalyzed.map((s) => ({ file: r.file, s })));
+  if (!all.length) return [];
+  const out = [`⚠️  ${all.length} statement(s) could NOT be analyzed (shown so nothing is silently skipped):`];
+  for (const { file, s } of all.slice(0, 10)) {
+    out.push(`   ${path.relative(process.cwd(), file) || file}: ${s.raw.replace(/\s+/g, ' ').slice(0, 90)}${s.raw.length > 90 ? '…' : ''}`);
+    if (s.detail) out.push(`     ↳ ${s.detail}`);
+  }
+  if (all.length > 10) out.push(`   … and ${all.length - 10} more`);
+  return out;
 }

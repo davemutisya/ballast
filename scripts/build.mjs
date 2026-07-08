@@ -11,7 +11,7 @@ await esbuild.build({
   platform: 'node',
   format: 'esm',
   target: 'node20',
-  external: ['pg', '@modelcontextprotocol/sdk', 'zod'],
+  external: ['pg', '@modelcontextprotocol/sdk', 'zod', 'libpg-query'],
   loader: { '.json': 'json' },
   banner: { js: '// Ballast — generated bundle. Edit src/, run `npm run build`.' },
 });

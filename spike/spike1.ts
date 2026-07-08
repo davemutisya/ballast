@@ -72,14 +72,14 @@ async function experimentA(c: pg.Client) {
     const setNotNull = `ALTER TABLE bench ALTER COLUMN n_col SET NOT NULL`;
     const d1 = await ms(() => c.query(setNotNull));
     rec.push({ op: 'SET_NOT_NULL', rows: stats.rows, dwellMs: d1 });
-    report(setNotNull, stats, d1);
+    await report(setNotNull, stats, d1);
     await c.query(`ALTER TABLE bench ALTER COLUMN n_col DROP NOT NULL`);
 
     // CREATE INDEX (non-concurrent) — SHARE, scan/build-bound.
     const createIdx = `CREATE INDEX bench_val_idx ON bench (val)`;
     const d2 = await ms(() => c.query(createIdx));
     rec.push({ op: 'CREATE_INDEX', rows: stats.rows, dwellMs: d2 });
-    report(createIdx, stats, d2);
+    await report(createIdx, stats, d2);
     await c.query('DROP INDEX bench_val_idx');
   }
 
@@ -96,8 +96,8 @@ async function experimentA(c: pg.Client) {
     );
   }
 
-  function report(sql: string, stats: StatsSnapshot, actualMs: number) {
-    const stmt = parse(sql)[0];
+  async function report(sql: string, stats: StatsSnapshot, actualMs: number) {
+    const stmt = (await parse(sql))[0];
     const f = analyzeStatement(stmt, stats, DEFAULT_CALIBRATION);
     console.log(`  ${stmt.kind} @ ${(stats.rows / 1e6).toFixed(2)}M rows — actual ${(actualMs / 1000).toFixed(2)}s  ${grade(f.dwell.seconds, f.dwell.low, f.dwell.high, actualMs / 1000)}`);
   }

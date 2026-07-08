@@ -19,12 +19,14 @@ export type LockMode =
  */
 export type CostClass = 'METADATA_ONLY' | 'SCAN' | 'REWRITE';
 
-/** A single DDL statement recognised by the analyzer. */
+/** A single statement classified by the parser. */
 export interface Statement {
   raw: string;
-  kind: string;          // e.g. 'CREATE_INDEX', 'SET_NOT_NULL'
+  kind: string;          // e.g. 'CREATE_INDEX', 'SET_NOT_NULL'; also 'BENIGN' | 'UNANALYZED'
   table: string | null;
   concurrent: boolean;   // CREATE INDEX CONCURRENTLY etc.
+  /** For UNANALYZED: why (parse error / unmapped node type). Surfaced, never silent. */
+  detail?: string;
 }
 
 /**

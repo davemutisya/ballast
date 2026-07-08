@@ -6,7 +6,7 @@
 
 import { lockFactsFor, type LockFacts } from './lockModel.ts';
 import { DEFAULT_CALIBRATION, predictBlast, predictDwell, type Calibration } from './loadModel.ts';
-import { parse } from './parse.ts';
+import { isAnalyzable, parse } from './parse.ts';
 import { factsFromEntry, matchEntry } from './catalog/match.ts';
 import type { BlastRadius, DwellPrediction, Finding, Severity, StatsSnapshot, Statement } from './types.ts';
 
@@ -18,11 +18,14 @@ function factsFor(stmt: Statement): LockFacts {
 
 const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️', danger: '⛔', critical: '🔥' };
 
-/** Dispatch: load-aware when we have stats, structural otherwise. */
-export function analyze(sql: string, stats: StatsSnapshot | null, cal?: Calibration): Finding[] {
-  return parse(sql)
-    .filter((s) => s.kind !== 'UNKNOWN')
-    .map((s) => (stats ? analyzeStatement(s, stats, cal) : structuralFinding(s)));
+/** Dispatch: load-aware when we have stats, structural otherwise. (Async: real parser.) */
+export async function analyze(sql: string, stats: StatsSnapshot | null, cal?: Calibration): Promise<Finding[]> {
+  return (await parse(sql)).filter(isAnalyzable).map((s) => analyzeFinding(s, stats, cal));
+}
+
+/** One parsed statement → one finding. Callers that parsed already use this directly. */
+export function analyzeFinding(stmt: Statement, stats: StatsSnapshot | null, cal?: Calibration): Finding {
+  return stats ? analyzeStatement(stmt, stats, cal) : structuralFinding(stmt);
 }
 
 export function analyzeStatement(stmt: Statement, stats: StatsSnapshot, cal: Calibration = DEFAULT_CALIBRATION): Finding {
@@ -38,10 +41,6 @@ export function structuralFinding(stmt: Statement): Finding {
   const dwell: DwellPrediction = { costClass: facts.costClass, seconds: 0, low: 0, high: 0, basis: 'unknown size — connect --dsn to quantify' };
   const blast: BlastRadius = { blocksReads: facts.blocksReads, blocksWrites: facts.blocksWrites, blockedQueries: 0, queuePileupRisk: 'none', queueNote: null };
   return finalize(stmt, facts, dwell, blast, structuralSeverity(facts), true);
-}
-
-export function analyzeSql(sql: string, stats: StatsSnapshot, cal?: Calibration): Finding[] {
-  return parse(sql).map((s) => analyzeStatement(s, stats, cal));
 }
 
 /** Shared rendering used by CLI and MCP — one voice everywhere. */

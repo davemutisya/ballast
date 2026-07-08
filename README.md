@@ -13,13 +13,18 @@ progressively more accurate on your database over time.
 
 ## Status: v0.1 — launch-ready, unproven in market
 Built and validated end-to-end; adoption + willingness-to-pay is the open question.
-- **CLI (`ballast check`)** — a superset of Squawk: catches non-concurrent indexes,
-  unsafe type changes, `ADD CHECK`/`FK`/`PRIMARY KEY`/`UNIQUE` (with `NOT VALID`
-  de-escalation), `RENAME`, `REINDEX`, `VACUUM FULL`, defaults — each bound to a
-  verified catalog entry with a safe rewrite and a source citation. `--explain`
-  shows the depth. Exits non-zero on danger → CI gate (`docs/ci/`). Won't cry wolf:
-  an index/constraint on a table `CREATE`d in the same migration is empty-table-safe
-  and graded accordingly.
+- **CLI (`ballast check`)** — parses with **`libpg_query`, PostgreSQL's own parser**
+  (no regex approximations: dollar-quoted bodies, multi-command ALTERs, and
+  schema-qualified names are handled by the real grammar). A superset of Squawk:
+  non-concurrent indexes, unsafe type changes, `ADD CHECK`/`FK`/`PRIMARY KEY`/`UNIQUE`
+  (with `NOT VALID` de-escalation), `RENAME`, `REINDEX`, `VACUUM FULL`, `DROP INDEX`,
+  `SET LOGGED`, `REFRESH MATERIALIZED VIEW`, partitions, and the *correct* fast-default
+  volatility rule (`DEFAULT now()` is safe on PG 11+ — measured 0.9ms on 2M rows;
+  `gen_random_uuid()` rewrites — measured 1,249ms). Each finding binds to a verified
+  catalog entry with a safe rewrite + source citation. Anything unclassifiable is
+  *reported*, never silently skipped. Exits non-zero on danger → CI gate (`docs/ci/`).
+  Won't cry wolf: an index/constraint on a relation `CREATE`d in the same migration
+  is graded safe.
 - **`ballast audit`** — the forensic sweep. Points at your *whole* migration history
   and reports the dangerous changes already in the repo, ranked by real blast radius
   at today's scale (with `--dsn`). A report, not a gate — the best first run. On the

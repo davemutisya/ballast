@@ -7,10 +7,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-import { analyze, findingLines } from './analyze.ts';
+import { analyzeFinding, findingLines } from './analyze.ts';
 import { CalibrationStore } from './calibration/store.ts';
 import { fingerprintOf } from './calibration/fingerprint.ts';
-import { parse } from './parse.ts';
+import { isAnalyzable, parse } from './parse.ts';
 import { snapshot } from './snapshot.ts';
 import type { StatsSnapshot } from './types.ts';
 
@@ -36,8 +36,10 @@ server.tool(
   async ({ sql, dsn, table, stats }) => {
     // A migration touches many tables; snapshot each statement's OWN table rather
     // than applying the first table's stats to everything (that was silently wrong).
-    const stmts = parse(sql).filter((s) => s.kind !== 'UNKNOWN');
-    if (!stmts.length) return text('No recognized DDL statements.');
+    const all = await parse(sql);
+    const stmts = all.filter(isAnalyzable);
+    const unanalyzed = all.filter((s) => s.kind === 'UNANALYZED');
+    const benign = all.length - stmts.length - unanalyzed.length;
 
     const lines: string[] = [];
     let anyLive = false;
@@ -52,19 +54,23 @@ server.tool(
         note = `  ⚠️ (snapshot failed for ${tbl}: ${(e as Error).message}; structural only)`;
       }
       const cal = snap ? store.toCalibration('postgres', fingerprintOf(snap)) : undefined;
-      const found = analyze(stmt.raw, snap, cal);
-      for (const f of found) {
-        const load = snap ? ` — ${fmt(snap.rows)} rows` +
-          (anyLive && snap.longestRunningTxnSec > 0 ? `, oldest blocking txn ${snap.longestRunningTxnSec.toFixed(1)}s` : '') : '';
-        lines.push(findingLines(f).join('\n') + (load ? `\n     ↳ context: ${f.statement.table}${load}` : '') + note);
-      }
+      const f = analyzeFinding(stmt, snap, cal);
+      const load = snap ? ` — ${fmt(snap.rows)} rows` +
+        (anyLive && snap.longestRunningTxnSec > 0 ? `, oldest blocking txn ${snap.longestRunningTxnSec.toFixed(1)}s` : '') : '';
+      lines.push(findingLines(f).join('\n') + (load ? `\n     ↳ context: ${f.statement.table}${load}` : '') + note);
     }
+
+    if (!lines.length && !unanalyzed.length) return text('No DDL statements to analyze.' + (benign ? ` (${benign} benign statement(s) — DML/functions/grants carry no table-lock risk.)` : ''));
 
     const header = anyLive
       ? 'Load-aware (live per-table snapshot):'
       : stats ? 'Stats-based analysis:'
       : 'Structural analysis — pass a read-only `dsn` or `stats` for the load-aware blast-radius verdict.';
-    return text(header + '\n\n' + lines.join('\n'));
+    const tail: string[] = [];
+    if (benign) tail.push(`(${benign} benign statement(s) not shown — no table-lock risk.)`);
+    for (const u of unanalyzed)
+      tail.push(`⚠️ NOT analyzed (${u.detail ?? 'unrecognized'}): ${u.raw.replace(/\s+/g, ' ').slice(0, 80)} — treat as unreviewed, do not assume safe.`);
+    return text([header, '', ...lines, ...(tail.length ? ['', ...tail] : [])].join('\n'));
   },
 );
 

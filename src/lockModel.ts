@@ -78,6 +78,27 @@ export function lockFactsFor(stmt: Statement): LockFacts {
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
         `Stop referencing the column in app code and deploy first; then drop in a low-lock_timeout migration.`);
 
+    // ── New-coverage ops (real-parser era) ──────────────────────────────────
+    case 'DROP_INDEX':
+      if (stmt.concurrent) return mk('SHARE UPDATE EXCLUSIVE', 'METADATA_ONLY', null);
+      return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
+        `DROP INDEX CONCURRENTLY <idx>;  — takes SHARE UPDATE EXCLUSIVE instead of ACCESS EXCLUSIVE (cannot run in a transaction).`);
+    case 'SET_LOGGED':
+    case 'SET_UNLOGGED':
+      // The whole table is rewritten into (or out of) the WAL-logged state.
+      return mk('ACCESS EXCLUSIVE', 'REWRITE',
+        `This rewrites the entire table under ACCESS EXCLUSIVE. Schedule it in a maintenance window, or create a new table with the target persistence, backfill in batches, and swap.`);
+    case 'REFRESH_MATVIEW':
+      if (stmt.concurrent) return mk('SHARE UPDATE EXCLUSIVE', 'SCAN', null);
+      return mk('ACCESS EXCLUSIVE', 'SCAN',
+        `REFRESH MATERIALIZED VIEW CONCURRENTLY <mv>;  — requires a UNIQUE index on the matview, but readers are not blocked during the refresh.`);
+    case 'ATTACH_PARTITION':
+      return mk('SHARE UPDATE EXCLUSIVE', 'SCAN',
+        `Before ATTACH, add a CHECK constraint on the child matching the partition bounds (ADD ... NOT VALID, then VALIDATE) so Postgres skips the verification scan; drop the CHECK after.`);
+    case 'DETACH_PARTITION':
+      return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
+        `ALTER TABLE <parent> DETACH PARTITION <part> CONCURRENTLY;  (PG 14+; cannot run in a transaction) — avoids the ACCESS EXCLUSIVE parent lock.`);
+
     // ── Destructive: fast locks, but irreversible data/schema loss ──────────
     case 'DROP_TABLE':
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',

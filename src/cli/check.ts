@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { findingLines } from '../analyze.ts';
 import { byId } from '../catalog/index.ts';
-import { scan, validSeverity } from './scan.ts';
+import { scan, unanalyzedLines, validSeverity, type FileFindings } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -60,8 +60,9 @@ export async function runCheck(argv: string[]): Promise<number> {
 const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️', danger: '⛔', critical: '🔥' };
 
 /** A PR-comment-shaped report. The marker on line 1 lets the Action update in place. */
-function renderMarkdown(results: { file: string; findings: Finding[] }[], loadAware: boolean): string {
+function renderMarkdown(results: FileFindings[], loadAware: boolean): string {
   const all = results.flatMap((r) => r.findings.map((f) => ({ f, file: r.file })));
+  const unTotal = results.reduce((s, r) => s + r.unanalyzed.length, 0);
   const tally: Record<Severity, number> = { safe: 0, caution: 0, danger: 0, critical: 0 };
   for (const { f } of all) tally[f.severity]++;
 
@@ -85,6 +86,7 @@ function renderMarkdown(results: { file: string; findings: Finding[] }[], loadAw
       out.push('');
     }
   }
+  if (unTotal) out.push('', `⚠️ ${unTotal} statement(s) could not be analyzed — run \`ballast check\` locally for the list.`);
   out.push(
     '<sub>Ballast weights each finding by real table size + live load — the danger a static linter can’t see. ' +
     '[ballast-pg](https://github.com/davemutisya/ballast) · MIT</sub>',
@@ -92,9 +94,10 @@ function renderMarkdown(results: { file: string; findings: Finding[] }[], loadAw
   return out.join('\n');
 }
 
-function render(results: { file: string; findings: Finding[] }[], loadAware: boolean, explain: boolean) {
+function render(results: FileFindings[], loadAware: boolean, explain: boolean) {
   const n = results.reduce((s, r) => s + r.findings.length, 0);
-  console.log(`\nballast check — ${results.length} file(s), ${n} statement(s)${loadAware ? ' [load-aware]' : ' [structural — --dsn for load-aware]'}\n`);
+  const benign = results.reduce((s, r) => s + r.benign, 0);
+  console.log(`\nballast check — ${results.length} file(s), ${n} DDL statement(s)${loadAware ? ' [load-aware]' : ' [structural — --dsn for load-aware]'}\n`);
   const tally: Record<Severity, number> = { safe: 0, caution: 0, danger: 0, critical: 0 };
   for (const { file, findings } of results) {
     if (!findings.length) continue;
@@ -107,6 +110,8 @@ function render(results: { file: string; findings: Finding[] }[], loadAware: boo
     console.log();
   }
   const parts = (['critical', 'danger', 'caution', 'safe'] as Severity[]).filter((s) => tally[s]).map((s) => `${tally[s]} ${s}`);
-  console.log(`Summary: ${parts.join(', ') || 'nothing recognized'}`);
+  console.log(`Summary: ${parts.join(', ') || 'nothing recognized'}${benign ? `  (+ ${benign} benign statement(s))` : ''}`);
+  const un = unanalyzedLines(results);
+  if (un.length) console.log('\n' + un.join('\n'));
 }
 

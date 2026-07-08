@@ -95,9 +95,11 @@ async function sampleTps(c: pg.Client, table: string): Promise<{ writeTps: numbe
                FROM pg_stat_user_tables WHERE relname = $1 LIMIT 1`;
   const a = await c.query(q, [table]);
   if (!a.rows[0]) return { writeTps: 0, readTps: 0 };
+  const t0 = performance.now();
   await new Promise((r) => setTimeout(r, 800));
   const b = await c.query(q, [table]);
-  const dt = 0.8;
+  // Measure the real window (timer jitter + the second query's RTT), don't assume it.
+  const dt = (performance.now() - t0) / 1000;
   return {
     writeTps: Math.max(0, (Number(b.rows[0].writes) - Number(a.rows[0].writes)) / dt),
     readTps: Math.max(0, (Number(b.rows[0].reads) - Number(a.rows[0].reads)) / dt),
