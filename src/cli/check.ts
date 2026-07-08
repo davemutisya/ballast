@@ -14,7 +14,8 @@ import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
 
-interface Args { paths: string[]; dsn?: string; table?: string; failOn: Severity; format: 'text' | 'json'; explain: boolean; }
+type Format = 'text' | 'json' | 'md';
+interface Args { paths: string[]; dsn?: string; table?: string; failOn: Severity; format: Format; explain: boolean; }
 
 function parseArgs(argv: string[]): Args {
   const a: Args = { paths: [], failOn: 'danger', format: 'text', explain: false };
@@ -23,7 +24,7 @@ function parseArgs(argv: string[]): Args {
     if (t === '--dsn') a.dsn = argv[++i];
     else if (t === '--table') a.table = argv[++i];
     else if (t === '--fail-on') a.failOn = validSeverity(argv[++i]);
-    else if (t === '--format') a.format = argv[++i] as 'text' | 'json';
+    else if (t === '--format') a.format = argv[++i] as Format;
     else if (t === '--json') a.format = 'json';
     else if (t === '--explain') a.explain = true;
     else if (!t.startsWith('-')) a.paths.push(t);
@@ -49,10 +50,46 @@ export async function runCheck(argv: string[]): Promise<number> {
   const results = await scan(args.paths, args.dsn, args.table);
 
   if (args.format === 'json') console.log(JSON.stringify(results, null, 2));
+  else if (args.format === 'md') console.log(renderMarkdown(results, !!args.dsn));
   else render(results, !!args.dsn, args.explain);
 
   const worst = Math.max(0, ...results.flatMap((r) => r.findings.map((f) => SEV_RANK[f.severity])));
   return worst >= SEV_RANK[args.failOn] ? 1 : 0;
+}
+
+const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️', danger: '⛔', critical: '🔥' };
+
+/** A PR-comment-shaped report. The marker on line 1 lets the Action update in place. */
+function renderMarkdown(results: { file: string; findings: Finding[] }[], loadAware: boolean): string {
+  const all = results.flatMap((r) => r.findings.map((f) => ({ f, file: r.file })));
+  const tally: Record<Severity, number> = { safe: 0, caution: 0, danger: 0, critical: 0 };
+  for (const { f } of all) tally[f.severity]++;
+
+  const out: string[] = ['<!-- ballast -->', '### 🚢 Ballast — migration safety', ''];
+  const badge = (['critical', 'danger', 'caution', 'safe'] as Severity[])
+    .filter((s) => tally[s]).map((s) => `${ICON[s]} ${tally[s]} ${s}`).join(' · ');
+  out.push(`**${badge || 'nothing recognized'}** — ${loadAware ? 'load-aware (live database)' : 'structural (no DB connected)'}`);
+
+  const flagged = all.filter(({ f }) => f.severity !== 'safe')
+    .sort((a, b) => SEV_RANK[b.f.severity] - SEV_RANK[a.f.severity]);
+  if (!flagged.length) {
+    out.push('', '✅ No blocking issues in the analyzed migrations.');
+  } else {
+    out.push('');
+    for (const { f, file } of flagged) {
+      const rel = path.relative(process.cwd(), file) || file;
+      out.push(`${ICON[f.severity]} **\`${rel}\`** — \`${f.statement.kind}\` on \`${f.statement.table ?? '?'}\``);
+      out.push(`> ${f.verdict}`);
+      if (f.safeRewrite) out.push(`> <details><summary>safe rewrite</summary>\n>\n> ${f.safeRewrite}\n> </details>`);
+      if (f.provenance) out.push(`> <sub>✓ ${f.provenance}</sub>`);
+      out.push('');
+    }
+  }
+  out.push(
+    '<sub>Ballast weights each finding by real table size + live load — the danger a static linter can’t see. ' +
+    '[ballast-pg](https://github.com/davemutisya/ballast) · MIT</sub>',
+  );
+  return out.join('\n');
 }
 
 function render(results: { file: string; findings: Finding[] }[], loadAware: boolean, explain: boolean) {

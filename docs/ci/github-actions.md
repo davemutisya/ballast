@@ -32,10 +32,20 @@ data.
       - run: npx ballast-pg check migrations/ --dsn "${{ secrets.BALLAST_DSN }}" --fail-on danger
 ```
 
+## PR comment + gate (recommended — the one people actually feel)
+
+Beyond a pass/fail check, post a blast-radius **comment on the PR** (updated in place
+on each push) so the danger is visible where the review happens — and still gate the
+merge. Copy [`ballast-pr-comment.yml`](ballast-pr-comment.yml) to
+`.github/workflows/ballast.yml`. It uses `--format md` to build the comment and needs
+`pull-requests: write` permission (already set in the template). No third-party action —
+just `actions/github-script`.
+
 ## Options
 - `--fail-on danger|critical` — the severity that fails the build (default `danger`).
+- `--format text|json|md` — human output, machine-readable, or a PR-comment-shaped
+  Markdown report (`md`).
 - `--explain` — print the verified catalog detail (why it's unsafe, edge cases).
-- `--json` — machine-readable output.
 - `--table <name>` — override the table to snapshot (multi-table migrations).
 
 ## In your coding agent (Cursor / Claude Code)
