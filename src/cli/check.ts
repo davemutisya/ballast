@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { findingLines } from '../analyze.ts';
 import { byId } from '../catalog/index.ts';
-import { scan } from './scan.ts';
+import { scan, validSeverity } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -22,7 +22,7 @@ function parseArgs(argv: string[]): Args {
     const t = argv[i];
     if (t === '--dsn') a.dsn = argv[++i];
     else if (t === '--table') a.table = argv[++i];
-    else if (t === '--fail-on') a.failOn = argv[++i] as Severity;
+    else if (t === '--fail-on') a.failOn = validSeverity(argv[++i]);
     else if (t === '--format') a.format = argv[++i] as 'text' | 'json';
     else if (t === '--json') a.format = 'json';
     else if (t === '--explain') a.explain = true;

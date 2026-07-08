@@ -34,31 +34,39 @@ server.tool(
     }).optional().describe('Explicit table stats, if no dsn is available.'),
   },
   async ({ sql, dsn, table, stats }) => {
-    const targetTable = table ?? parse(sql).find((s) => s.table)?.table ?? null;
+    // A migration touches many tables; snapshot each statement's OWN table rather
+    // than applying the first table's stats to everything (that was silently wrong).
+    const stmts = parse(sql).filter((s) => s.kind !== 'UNKNOWN');
+    if (!stmts.length) return text('No recognized DDL statements.');
 
-    let snap: StatsSnapshot | null = null;
-    let mode = 'structural';
-    try {
-      if (dsn && targetTable) { snap = await snapshot(dsn, targetTable); mode = 'live'; }
-      else if (stats) { snap = fromStats(stats, targetTable); mode = 'stats'; }
-    } catch (e) {
-      return text(`⚠️ Could not snapshot the database (${(e as Error).message}). Falling back to structural analysis.\n\n` + body(sql, null));
+    const lines: string[] = [];
+    let anyLive = false;
+    for (const stmt of stmts) {
+      const tbl = table ?? stmt.table;
+      let snap: StatsSnapshot | null = null;
+      let note = '';
+      try {
+        if (dsn && tbl) { snap = await snapshot(dsn, tbl); anyLive = true; }
+        else if (stats) { snap = fromStats(stats, tbl); }
+      } catch (e) {
+        note = `  ⚠️ (snapshot failed for ${tbl}: ${(e as Error).message}; structural only)`;
+      }
+      const cal = snap ? store.toCalibration('postgres', fingerprintOf(snap)) : undefined;
+      const found = analyze(stmt.raw, snap, cal);
+      for (const f of found) {
+        const load = snap ? ` — ${fmt(snap.rows)} rows` +
+          (anyLive && snap.longestRunningTxnSec > 0 ? `, oldest blocking txn ${snap.longestRunningTxnSec.toFixed(1)}s` : '') : '';
+        lines.push(findingLines(f).join('\n') + (load ? `\n     ↳ context: ${f.statement.table}${load}` : '') + note);
+      }
     }
 
-    const header = snap
-      ? `Load-aware (${mode}): ${targetTable} ≈ ${fmt(snap.rows)} rows` +
-        (mode === 'live' ? `, ${snap.writeTps.toFixed(0)} w/s, oldest active query ${snap.longestRunningTxnSec.toFixed(1)}s` : '')
+    const header = anyLive
+      ? 'Load-aware (live per-table snapshot):'
+      : stats ? 'Stats-based analysis:'
       : 'Structural analysis — pass a read-only `dsn` or `stats` for the load-aware blast-radius verdict.';
-    return text(header + '\n\n' + body(sql, snap));
+    return text(header + '\n\n' + lines.join('\n'));
   },
 );
-
-function body(sql: string, snap: StatsSnapshot | null): string {
-  const cal = snap ? store.toCalibration('postgres', fingerprintOf(snap)) : undefined;
-  const findings = analyze(sql, snap, cal);
-  if (!findings.length) return 'No recognized DDL statements.';
-  return findings.map((f) => findingLines(f).join('\n')).join('\n');
-}
 
 function fromStats(
   s: { rows: number; bytes?: number; writeTps?: number; readTps?: number; longestRunningTxnSec?: number },

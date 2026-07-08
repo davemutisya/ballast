@@ -10,46 +10,82 @@ export async function snapshot(dsn: string, table: string): Promise<StatsSnapsho
   const c = new pg.Client({ connectionString: dsn });
   await c.connect();
   try {
-    const size = await c.query(
-      `SELECT c.reltuples::bigint AS rows, pg_total_relation_size(c.oid) AS bytes
+    // Resolve to an OID up front. Accept schema-qualified ("public.orders") and
+    // quoted names; prefer public then the search_path when the name is bare.
+    const [schema, bare] = splitQualified(table);
+    const rel = await c.query(
+      `SELECT c.oid, n.nspname, c.relname, c.reltuples::bigint AS rows, pg_total_relation_size(c.oid) AS bytes
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relname = $1 AND c.relkind IN ('r','p')
-        ORDER BY (n.nspname = 'public') DESC LIMIT 1`,
-      [table],
+        WHERE c.relname = $1 AND ($2::text IS NULL OR n.nspname = $2) AND c.relkind IN ('r','p')
+        ORDER BY (n.nspname = 'public') DESC, (n.nspname = ANY(current_schemas(true))) DESC
+        LIMIT 1`,
+      [bare, schema],
     );
-    if (!size.rows[0]) throw new Error(`table "${table}" not found (grant SELECT on it and pg_catalog)`);
+    if (!rel.rows[0]) throw new Error(`table "${table}" not found (grant SELECT on it and pg_catalog)`);
+    const oid = rel.rows[0].oid as number;
 
-    // The lock-queue amplifier: the age of the oldest in-flight statement. If a
-    // long query is running, an ACCESS EXCLUSIVE migration will queue behind it
-    // and pile everything up. This single field is our biggest differentiation.
+    // The lock-queue amplifier — our biggest differentiation. We want the oldest
+    // OPEN TRANSACTION that holds ANY lock on *this* table, because an incoming
+    // ACCESS EXCLUSIVE migration must queue behind it (and then everything queues
+    // behind the migration). Three things the naive version got wrong:
+    //   • include 'idle in transaction' — a session that ran a SELECT, holds its
+    //     ACCESS SHARE, and now sits idle is the exact Spike-C hazard; state
+    //     'active' would miss it entirely;
+    //   • clock from xact_start, not query_start — the whole transaction holds the
+    //     lock until commit, and query_start resets each statement;
+    //   • scope to this table via pg_locks (relation = oid), not cluster-wide.
     const txn = await c.query(
-      `SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - query_start))), 0)::float AS sec
-         FROM pg_stat_activity
-        WHERE state = 'active' AND pid <> pg_backend_pid() AND query_start IS NOT NULL`,
+      `SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - a.xact_start))), 0)::float AS sec
+         FROM pg_locks l
+         JOIN pg_stat_activity a ON a.pid = l.pid
+        WHERE l.relation = $1
+          AND l.locktype = 'relation'
+          AND a.pid <> pg_backend_pid()
+          AND a.xact_start IS NOT NULL
+          AND a.state <> 'idle'`,
+      [oid],
     );
 
-    const { writeTps, readTps } = await sampleTps(c, table);
+    const { writeTps, readTps } = await sampleTps(c, rel.rows[0].relname);
 
     const meta = await c.query(
       `SELECT (current_setting('server_version_num')::int / 10000)::text AS major,
-              (SELECT count(*) FROM pg_index i JOIN pg_class ic ON ic.oid = i.indrelid WHERE ic.relname = $1)::int AS idx`,
-      [table],
+              current_setting('lock_timeout') AS lock_timeout,
+              (SELECT count(*) FROM pg_index i WHERE i.indrelid = $1)::int AS idx`,
+      [oid],
     );
 
     return {
       table,
-      rows: Number(size.rows[0].rows),
-      bytes: Number(size.rows[0].bytes),
+      rows: Number(rel.rows[0].rows),
+      bytes: Number(rel.rows[0].bytes),
       writeTps,
       readTps,
       longestRunningTxnSec: Number(txn.rows[0].sec),
-      lockTimeoutMs: null,
+      lockTimeoutMs: parseLockTimeout(meta.rows[0].lock_timeout),
       engineVersionMajor: String(meta.rows[0].major),
       indexCount: Number(meta.rows[0].idx),
     };
   } finally {
     await c.end();
   }
+}
+
+/** Split "schema.table" (each part optionally quoted) → [schema|null, table]. */
+function splitQualified(name: string): [string | null, string] {
+  const parts = name.match(/"[^"]*"|[^.]+/g) ?? [name];
+  const unquote = (s: string) => s.replace(/^"|"$/g, '');
+  return parts.length > 1 ? [unquote(parts[0]), unquote(parts[1])] : [null, unquote(parts[0])];
+}
+
+/** Postgres lock_timeout is ms or a unit string ('2s', '0' = disabled → null). */
+function parseLockTimeout(v: string | null): number | null {
+  if (!v) return null;
+  const m = v.trim().match(/^(\d+)\s*(ms|s|min)?$/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (n === 0) return null;
+  return m[2] === 's' ? n * 1000 : m[2] === 'min' ? n * 60000 : n;
 }
 
 /** Sample per-table write/read op rates over a short window from pg_stat_user_tables. */

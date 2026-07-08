@@ -9,9 +9,17 @@ import { CalibrationStore } from '../calibration/store.ts';
 import { fingerprintOf } from '../calibration/fingerprint.ts';
 import { parse } from '../parse.ts';
 import { snapshot } from '../snapshot.ts';
-import type { Finding } from '../types.ts';
+import type { Finding, Severity } from '../types.ts';
 
 export interface FileFindings { file: string; findings: Finding[] }
+
+const SEVERITIES: Severity[] = ['safe', 'caution', 'danger', 'critical'];
+
+/** Reject a mistyped --fail-on (e.g. "daner") loudly instead of silently disabling the gate. */
+export function validSeverity(v: string | undefined): Severity {
+  if (v && (SEVERITIES as string[]).includes(v)) return v as Severity;
+  throw new Error(`invalid severity "${v ?? ''}" — expected one of: ${SEVERITIES.join(', ')}`);
+}
 
 // Tables born in this same migration file: any index/constraint/column change
 // against them runs on an empty table with no concurrent traffic → genuinely

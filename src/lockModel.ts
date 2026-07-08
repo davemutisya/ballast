@@ -13,6 +13,8 @@ export interface LockFacts {
   blocksReads: boolean;
   blocksWrites: boolean;
   safeRewrite: string | null;
+  /** Irreversible data/schema loss (DROP TABLE, TRUNCATE) — dangerous regardless of lock duration. */
+  destructive?: boolean;
   catalogId?: string;
   sources?: string[];
 }
@@ -76,18 +78,29 @@ export function lockFactsFor(stmt: Statement): LockFacts {
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
         `Stop referencing the column in app code and deploy first; then drop in a low-lock_timeout migration.`);
 
+    // ── Destructive: fast locks, but irreversible data/schema loss ──────────
+    case 'DROP_TABLE':
+      return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
+        `Irreversible. Confirm no views/FKs/app code depend on it; take a backup; consider ` +
+        `renaming it out of the way first and dropping later once nothing breaks.`, true);
+    case 'TRUNCATE':
+      return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
+        `Irreversible bulk delete under ACCESS EXCLUSIVE. Take a backup first; run under a short ` +
+        `lock_timeout; TRUNCATE also resets nothing you may rely on (sequences unless RESTART IDENTITY).`, true);
+
     default:
       // Unknown ALTER: assume the dangerous default (most ALTER TABLE = ACCESS EXCLUSIVE).
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY', null);
   }
 
-  function mk(lockMode: LockMode, costClass: CostClass, safeRewrite: string | null): LockFacts {
+  function mk(lockMode: LockMode, costClass: CostClass, safeRewrite: string | null, destructive = false): LockFacts {
     return {
       lockMode,
       costClass,
       blocksReads: blocksReads(lockMode),
       blocksWrites: blocksWrites(lockMode),
       safeRewrite,
+      destructive,
     };
   }
 }

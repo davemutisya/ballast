@@ -25,6 +25,8 @@ function kindOf(s: string): string {
   const has = (re: RegExp) => re.test(s);
   // Statement-leading forms first.
   if (has(/^create\s+(unique\s+)?index\b/i)) return 'CREATE_INDEX';
+  if (has(/^drop\s+table\b/i)) return 'DROP_TABLE';
+  if (has(/^truncate\b/i)) return 'TRUNCATE';
   if (has(/^reindex\b/i)) return 'REINDEX';
   if (has(/^vacuum\s+full\b/i)) return 'VACUUM_FULL';
   if (has(/^cluster\b/i)) return 'CLUSTER';
@@ -56,6 +58,8 @@ function tableOf(lower: string): string | null {
   const m =
     lower.match(/\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([a-z_"][\w."$]*)/) ||
     lower.match(/create\s+(?:unique\s+)?index\b[^;]*?\bon\s+(?:only\s+)?([a-z_"][\w."$]*)/) ||
+    lower.match(/^drop\s+table\s+(?:if\s+exists\s+)?([a-z_"][\w."$]*)/) ||
+    lower.match(/^truncate\s+(?:table\s+)?(?:only\s+)?([a-z_"][\w."$]*)/) ||
     lower.match(/\b(?:reindex\s+table|cluster|vacuum\s+full)\s+(?:concurrently\s+)?([a-z_"][\w."$]*)/) ||
     lower.match(/\balter\s+index\s+([a-z_"][\w."$]*)/);
   return m ? m[1].replace(/"/g, '') : null;

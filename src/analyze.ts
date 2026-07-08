@@ -47,20 +47,26 @@ export function analyzeSql(sql: string, stats: StatsSnapshot, cal?: Calibration)
 /** Shared rendering used by CLI and MCP — one voice everywhere. */
 export function findingLines(f: Finding): string[] {
   const out = ['  ' + f.verdict];
-  if (f.safeRewrite && (f.severity === 'danger' || f.severity === 'critical')) out.push(`     ↳ safe rewrite: ${f.safeRewrite}`);
+  if (f.safeRewrite && f.severity !== 'safe') out.push(`     ↳ safe rewrite: ${f.safeRewrite}`);
   if (f.provenance) out.push(`     ✓ ${f.provenance}`);
   return out;
 }
 
 // ── internals ────────────────────────────────────────────────────────────────
 
+const RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
+
 function finalize(
   stmt: Statement, facts: LockFacts, dwell: DwellPrediction, blast: BlastRadius,
   severity: Severity, structural: boolean,
 ): Finding {
+  // Destructive ops (DROP TABLE, TRUNCATE) are dangerous no matter how fast the
+  // lock is — data loss isn't a lock-duration property, so never let them grade
+  // below danger just because they're metadata-only.
+  const sev = facts.destructive && RANK[severity] < RANK.danger ? 'danger' : severity;
   return {
-    statement: stmt, lockMode: facts.lockMode, dwell, blast, severity, safeRewrite: facts.safeRewrite,
-    verdict: renderVerdict(stmt, facts.lockMode, dwell, blast, severity, structural),
+    statement: stmt, lockMode: facts.lockMode, dwell, blast, severity: sev, safeRewrite: facts.safeRewrite,
+    verdict: renderVerdict(stmt, facts.lockMode, dwell, blast, sev, structural),
     provenance: provenanceFrom(facts),
     catalogId: facts.catalogId,
   };

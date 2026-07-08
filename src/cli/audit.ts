@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 
-import { scan } from './scan.ts';
+import { scan, validSeverity } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -22,7 +22,7 @@ function parseArgs(argv: string[]): Args {
     if (t === '--dsn') a.dsn = argv[++i];
     else if (t === '--table') a.table = argv[++i];
     else if (t === '--top') a.top = Math.max(1, parseInt(argv[++i], 10) || 10);
-    else if (t === '--fail-on') a.failOn = argv[++i] as Severity;
+    else if (t === '--fail-on') a.failOn = validSeverity(argv[++i]);
     else if (!t.startsWith('-')) a.paths.push(t);
   }
   return a;
