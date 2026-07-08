@@ -11,33 +11,47 @@ Ballast's wedge is the thing static tools structurally can't do: weight every
 finding by *your* real table size and load, in the agent loop, and get
 progressively more accurate on your database over time.
 
-## Status: early build (validated core)
-- **Spike 1 (PASS)** — lock dwell time is a predictable, calibratable function of
-  table stats (CV ~10%); predictions land in-band; the lock-queue pileup on a
-  "fast" ALTER reproduces. See `SPIKE1-RESULTS.md`.
+## Status: v0.1 — launch-ready, unproven in market
+Built and validated end-to-end; adoption + willingness-to-pay is the open question.
+- **CLI (`ballast check`)** — a superset of Squawk: catches non-concurrent indexes,
+  unsafe type changes, `ADD CHECK`/`FK`/`PRIMARY KEY`/`UNIQUE` (with `NOT VALID`
+  de-escalation), `RENAME`, `REINDEX`, `VACUUM FULL`, defaults — each bound to a
+  verified catalog entry with a safe rewrite and a source citation. `--explain`
+  shows the depth. Exits non-zero on danger → CI gate (`docs/ci/`).
+- **Load-aware (`--dsn`)** — a read-only snapshot weights each finding by real table
+  size + live transaction state. Spike 1 validated the model (CV ~10%, predictions
+  in-band); the same `CREATE INDEX` is safe on 10 rows, critical on 3M. See
+  `SPIKE1-RESULTS.md`.
+- **`ballast calibrate`** — learns your DB's real throughput (local, private);
+  progressive backoff generalizes one run across table shapes.
 - **Correctness catalog** — 124 PostgreSQL entries authored from primary docs and
-  **adversarially verified** (`src/catalog/`, `docs/catalog/verification.json`).
-  MySQL + SQL Server scoped (`docs/catalog/`).
-- **Calibration/telemetry moat** — hierarchical per-environment posterior over a
-  global prior; strict opt-in, anonymized, redaction-boundary contract
-  (`src/calibration/`). `npx tsx spike/calibration-test.ts` shows it converge from
-  the seed to an environment's true throughput.
-- **MCP server** — `analyze_migration` in the agent loop (`src/mcp.ts`).
+  **adversarially verified**; MySQL + SQL Server scoped (`docs/catalog/`).
+  **Validated on 66 real BomaOS migrations** (caught 50+ real dangers).
+- **Calibration/telemetry** — hierarchical per-environment posterior over a global
+  prior; strict opt-in, anonymized, redaction-boundary contract (`src/calibration/`).
+- **MCP server** (`ballast-mcp`) — `analyze_migration` in the agent loop.
+- Publishable as `ballast-pg@0.1.0` (MIT). Not yet published / no users — that's next.
 
 ## Layout
 ```
 src/
-  analyze.ts, lockModel.ts, loadModel.ts, parse.ts, snapshot.ts   core analyzer
-  catalog/        verified correctness catalog (data + loader)
-  calibration/    telemetry contract (redaction boundary) + hierarchical calibration
+  cli/            check.ts, calibrate.ts, index.ts   (the `ballast` command)
+  analyze.ts, lockModel.ts, loadModel.ts, parse.ts, snapshot.ts, types.ts   core
+  catalog/        124 verified entries (postgres.generated.json) + loader + matcher
+  calibration/    redaction-boundary contract + hierarchical calibration + store
   mcp.ts          MCP server — the agent-loop wedge
+bin/              ballast, ballast-mcp
+.github/workflows/ci.yml   repo CI (typecheck + build + dogfood)
 spike/            Spike 1 (load model) + calibration self-test + MCP smoke test
+examples/         sample migrations
 docs/
-  strategy/GTM.md         how Cursor won + the sequenced plan to become the AI DBA
-  architecture/DESIGN.md  telemetry corpus + multi-DB abstraction design
-  catalog/                verification results, MySQL + SQL Server catalogs
-PLAN.md            product/build plan, competitive analysis, kill-signals
-founder-strategy-2026.md  (repo root parent) the decision + do-not-build list
+  blog/           incident encyclopedia (SEO content)
+  launch/         Show HN + Reddit + design-partner outreach
+  ci/             GitHub Action for the migration gate
+  strategy/       GTM.md, MONETIZATION.md
+  architecture/   DESIGN.md (telemetry corpus + multi-DB abstraction)
+  catalog/        verification results, MySQL + SQL Server catalogs
+PLAN.md · SPIKE1-RESULTS.md
 ```
 
 ## Use

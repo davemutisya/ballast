@@ -85,7 +85,7 @@ the migration **times the state of your database right now.**
 
 ## Ballast catches this automatically
 
-[Ballast](https://github.com/Grumpy254/ballast) is load-aware. Before a migration
+[Ballast](https://github.com/davemutisya/ballast) is load-aware. Before a migration
 runs — including inside your coding agent, via MCP — it reads the live database:
 table size, write throughput, and, crucially, **the age of the oldest running
 transaction.** That last field is what catches this incident. Point it at the same
