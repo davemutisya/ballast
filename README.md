@@ -57,8 +57,15 @@ docs/
   strategy/       GTM.md, MONETIZATION.md
   architecture/   DESIGN.md (telemetry corpus + multi-DB abstraction)
   catalog/        verification results, MySQL + SQL Server catalogs
+  VISION.md       roadmap, moat, crystal-ball scenarios, execution contract
 PLAN.md · SPIKE1-RESULTS.md
 ```
+
+## Where this is going
+Short version: OSS adoption now (the `audit` hook + agent-loop MCP + a free PR-comment
+GitHub Action), paid enforcement + connected-mode accuracy later, migration-safety as
+CI infrastructure eventually. Honest odds, the moat mechanics, and the anti-abandonment
+execution contract are in **[docs/VISION.md](docs/VISION.md)**.
 
 ## Use
 ```bash
