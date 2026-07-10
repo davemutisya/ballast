@@ -77,6 +77,12 @@ betting the pricing on it. See [VISION §4](VISION.md) and the kill criteria in 
   access) is designed but not built — it slightly undercuts the safety story until
   shipped. Roadmap.
 - **Uncertainty band** (low/high) is computed but only partly surfaced in output.
+- **No timeout-hygiene rule yet.** Squawk's `require-timeout-settings` flags
+  migrations that don't `SET lock_timeout` before slow DDL; Ballast advises it in
+  rewrites but doesn't enforce it as a rule (found in our own
+  [benchmark](COMPARISON.md) — backlog).
+- **App-level (non-lock) breakage checks** strong_migrations has and we don't:
+  `json`-column equality quirk, `ALTER TYPE … RENAME VALUE`, schema renames. Backlog.
 - **MCP setup:** see [MCP.md](MCP.md).
 
 ---

@@ -65,6 +65,13 @@ docs/
 PLAN.md · SPIKE1-RESULTS.md
 ```
 
+## How it compares
+Benchmarked head-to-head against Squawk on a labeled corpus (in-repo, re-runnable):
+**18/18 dangerous ops caught vs 11, 0 false positives vs 2** — plus a rule-mapping vs
+strong_migrations and an honest "where they're better" section. Full methodology +
+results: **[docs/COMPARISON.md](docs/COMPARISON.md)**. The corpus numbers are locked
+by CI tests, so the published claims can't drift from the shipped code.
+
 ## Where this is going
 OSS adoption now (the `audit` hook + agent-loop MCP + a free PR-comment GitHub Action),
 paid enforcement + connected-mode accuracy later, migration-safety as CI infrastructure
