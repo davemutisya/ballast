@@ -69,16 +69,52 @@ function classify(node: Record<string, any>, raw: string): Statement[] {
     }
     case 'RefreshMatViewStmt':
       return [st(raw, 'REFRESH_MATVIEW', rangeVar(n.relation), !!n.concurrent)];
-    case 'CreateStmt': // feeds the same-file new-relation exemption
-      return [st(raw, 'CREATE_TABLE', rangeVar(n.relation), false)];
+    case 'CreateStmt': {
+      // Feeds the same-file new-relation exemption — and CREATE TABLE with FK
+      // references takes SHARE ROW EXCLUSIVE on each PRE-EXISTING parent (brief,
+      // but it queues behind long transactions: --dsn mode catches that).
+      const out = [st(raw, 'CREATE_TABLE', rangeVar(n.relation), false)];
+      for (const parent of fkParentsOf(n)) out.push(st(raw, 'CREATE_TABLE_FK', parent, false));
+      return out;
+    }
     case 'CreateTableAsStmt': {
       const kind = n.objtype === 'OBJECT_MATVIEW' ? 'CREATE_MATVIEW' : 'CREATE_TABLE';
       return [st(raw, kind, rangeVar(n.into?.rel), false)];
     }
+    case 'AlterEnumStmt':
+      // ADD VALUE locks the enum TYPE, not any table. Analyzable (visible with an
+      // accurate no-table-lock verdict) but safe — pre-PG12 in-transaction failure
+      // is a runner quirk on EOL versions, not a lock outage.
+      return [st(raw, 'ALTER_ENUM_ADD_VALUE', null, false)];
+    case 'UpdateStmt':
+    case 'DeleteStmt':
+      // Un-scoped UPDATE/DELETE in a migration = classic single-transaction
+      // backfill: row locks on every row until commit, WAL bloat, replica lag.
+      // strong_migrations flags this; Squawk doesn't. With a WHERE it's benign
+      // (we can't judge selectivity statically).
+      if (!n.whereClause) return [st(raw, 'UNBATCHED_DML', rangeVar(n.relation), false)];
+      return [benign(raw)];
     default:
       if (type && BENIGN_NODES.has(type)) return [benign(raw)];
       return [un(raw, `unmapped statement type ${type ?? '(empty)'}`)];
   }
+}
+
+/** Parents referenced by FK constraints in a CREATE TABLE (column-level and table-level). */
+function fkParentsOf(n: any): string[] {
+  const parents = new Set<string>();
+  for (const elt of n.tableElts ?? []) {
+    for (const c of elt.ColumnDef?.constraints ?? []) {
+      const t = c.Constraint?.contype === 'CONSTR_FOREIGN' ? rangeVar(c.Constraint.pktable) : null;
+      if (t) parents.add(t);
+    }
+    const tc = elt.Constraint;
+    if (tc?.contype === 'CONSTR_FOREIGN') {
+      const t = rangeVar(tc.pktable);
+      if (t) parents.add(t);
+    }
+  }
+  return [...parents];
 }
 
 function alterTable(n: any, raw: string): Statement[] {
@@ -88,15 +124,25 @@ function alterTable(n: any, raw: string): Statement[] {
   const out: Statement[] = [];
   for (const c of n.cmds ?? []) {
     const cmd = c.AlterTableCmd ?? {};
-    out.push(alterCmd(cmd, table, raw));
+    out.push(...alterCmd(cmd, table, raw));
   }
   return out.length ? out : [benign(raw)];
 }
 
-function alterCmd(cmd: any, table: string | null, raw: string): Statement {
-  const k = (kind: string) => st(raw, kind, table, false);
+function alterCmd(cmd: any, table: string | null, raw: string): Statement[] {
+  const k = (kind: string) => [st(raw, kind, table, false)];
   switch (cmd.subtype) {
-    case 'AT_AddColumn': return k(addColumnKind(cmd.def?.ColumnDef));
+    case 'AT_AddColumn': {
+      const cd = cmd.def?.ColumnDef;
+      const out = k(addColumnKind(cd));
+      // Inline FK (ADD COLUMN x REFERENCES parent(id)): also takes SHARE ROW
+      // EXCLUSIVE on the PARENT and validates — a second lock effect the base
+      // kind doesn't carry. Emit it as its own finding (never under-warn).
+      for (const c of cd?.constraints ?? []) {
+        if (c.Constraint?.contype === 'CONSTR_FOREIGN') out.push(st(raw, 'ADD_FOREIGN_KEY', table, false));
+      }
+      return out;
+    }
     case 'AT_DropColumn': return k('DROP_COLUMN');
     case 'AT_ColumnDefault': return k(cmd.def ? 'SET_DEFAULT' : 'DROP_DEFAULT');
     case 'AT_SetNotNull': return k('SET_NOT_NULL');
@@ -113,15 +159,20 @@ function alterCmd(cmd: any, table: string | null, raw: string): Statement {
       // Storage/statistics/trigger-enable/owner/etc: metadata-only table lock,
       // no scan/rewrite. Modeled by the lockModel default (brief ACCESS EXCLUSIVE).
       if (cmd.subtype && METADATA_ALTER.has(cmd.subtype)) return k('ALTER_TABLE_MISC');
-      return un(raw, `unmapped ALTER TABLE subtype ${cmd.subtype ?? '(none)'}`);
+      return [un(raw, `unmapped ALTER TABLE subtype ${cmd.subtype ?? '(none)'}`)];
   }
 }
 
 function constraintKind(con: any): string {
+  // ADD CONSTRAINT ... {UNIQUE|PRIMARY KEY} USING INDEX <idx> attaches a
+  // PRE-BUILT index: metadata-only, and literally the final step of our own
+  // safe rewrite. Flagging it as danger would re-flag users for following our
+  // advice (the audit's "most embarrassing finding").
+  const usingIndex = !!con?.indexname;
   switch (con?.contype) {
     case 'CONSTR_FOREIGN': return 'ADD_FOREIGN_KEY';
-    case 'CONSTR_PRIMARY': return 'ADD_PRIMARY_KEY';
-    case 'CONSTR_UNIQUE': return 'ADD_UNIQUE';
+    case 'CONSTR_PRIMARY': return usingIndex ? 'ADD_PK_USING_INDEX' : 'ADD_PRIMARY_KEY';
+    case 'CONSTR_UNIQUE': return usingIndex ? 'ADD_UNIQUE_USING_INDEX' : 'ADD_UNIQUE';
     case 'CONSTR_EXCLUSION': return 'ADD_UNIQUE'; // builds an index under the same locks
     case 'CONSTR_CHECK': return 'ADD_CHECK';
     default: return 'ADD_CHECK'; // conservative: constraint we don't know = assume verifying scan
@@ -219,13 +270,13 @@ function un(raw: string, detail: string): Statement {
 // UPDATE/DELETE backfills) is out of scope for the LOCK model — batching advice
 // belongs to rewrites, not findings.
 const BENIGN_NODES = new Set([
-  'SelectStmt', 'InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt', 'CopyStmt',
+  'SelectStmt', 'InsertStmt', 'MergeStmt', 'CopyStmt', // Update/Delete handled above (backfill heuristic)
   'DoStmt', 'CallStmt', 'ExplainStmt', 'VariableSetStmt', 'VariableShowStmt',
   'TransactionStmt', 'LockStmt', 'NotifyStmt', 'ListenStmt', 'UnlistenStmt',
   'ViewStmt', 'CreateFunctionStmt', 'AlterFunctionStmt', 'CreateTrigStmt',
   'CreatePolicyStmt', 'AlterPolicyStmt', 'CreateSeqStmt', 'AlterSeqStmt',
   'CreateSchemaStmt', 'CreateExtensionStmt', 'AlterExtensionStmt',
-  'CreateEnumStmt', 'AlterEnumStmt', 'CreateDomainStmt', 'AlterDomainStmt',
+  'CreateEnumStmt', 'CreateDomainStmt', 'AlterDomainStmt', // AlterEnum handled above
   'CompositeTypeStmt', 'CreateRangeStmt', 'DefineStmt', 'CreateCastStmt',
   'CreateStatsStmt', 'CommentStmt', 'SecLabelStmt', 'RuleStmt',
   'GrantStmt', 'GrantRoleStmt', 'AlterDefaultPrivilegesStmt',

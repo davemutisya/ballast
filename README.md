@@ -84,6 +84,10 @@ ballast check migrations/                        # gate one change (structural);
 ballast check migrations/ --dsn "$DATABASE_URL"  # load-aware: weight by real size + live load
 ballast calibrate --dsn "$DATABASE_URL"          # learn YOUR db's throughput (local, private)
 ```
+**Overriding a finding:** put `-- ballast-ignore` on the line before a statement to
+suppress it — still shown (🔇, with what it would have been), but it won't trip the CI
+gate. Every linter needs an escape hatch; use it with a reason in the comment.
+
 (From a repo checkout: `npm install && npm run build`, then `node bin/ballast.js ...`.)
 `ballast check` exits non-zero on a danger/critical
 finding → drops into CI as a gate. The `ballast-mcp` bin exposes `analyze_migration`

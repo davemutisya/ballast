@@ -53,7 +53,8 @@
     "calib": "tsx spike/calibration-test.ts",
     "mcp-smoke": "tsx spike/mcp-smoke.ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

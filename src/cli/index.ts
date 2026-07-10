@@ -35,4 +35,10 @@ async function main(): Promise<number> {
   }
 }
 
-main().then((code) => process.exit(code)).catch((e) => { console.error('ballast: ' + (e as Error).message); process.exit(2); });
+main().then((code) => process.exit(code)).catch((e) => {
+  console.error('ballast: ' + (e as Error).message);
+  // Unexpected-error diagnosis must not require a rebuild: --debug or env flag.
+  if (process.argv.includes('--debug') || process.env.BALLAST_DEBUG) console.error((e as Error).stack);
+  else console.error('(re-run with --debug for a stack trace)');
+  process.exit(2);
+});

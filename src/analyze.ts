@@ -92,7 +92,11 @@ function provenanceFrom(facts: LockFacts): string | undefined {
 function structuralSeverity(f: LockFacts): Severity {
   if (f.costClass === 'REWRITE') return 'danger';                          // rewrites are always heavy
   if (f.costClass === 'SCAN' && f.blocksWrites) return 'danger';           // scan-bound write block, unknown size
-  if (!f.blocksReads && !f.blocksWrites) return 'safe';                    // blocks nothing (e.g. CONCURRENTLY)
+  // Blocks nothing (e.g. CONCURRENTLY) → safe, unless the facts explicitly carry
+  // a no-lock hazard (e.g. an unbatched backfill: row locks, WAL bloat, replica
+  // lag). Explicit flag, NOT rewrite-text sniffing — that heuristic cried wolf
+  // on VALIDATE CONSTRAINT within minutes of existing (the corpus caught it).
+  if (!f.blocksReads && !f.blocksWrites) return f.noLockHazard ? 'caution' : 'safe';
   // Metadata-only ops (ADD/DROP COLUMN, SET/DROP DEFAULT, RENAME) are instant in
   // isolation — a static linter can't honestly call them anything but safe, and
   // grading some 'caution' and their siblings 'safe' (the old safeRewrite-string

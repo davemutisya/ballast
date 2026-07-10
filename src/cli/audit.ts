@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 
-import { scan, unanalyzedLines, validSeverity } from './scan.ts';
+import { disclosureLines, scan, validSeverity } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -49,7 +49,8 @@ function rel(file: string): string {
 export async function runAudit(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   const loadAware = !!args.dsn;
-  const results = await scan(args.paths, args.dsn, args.table);
+  const scanned = await scan(args.paths, args.dsn, args.table);
+  const results = scanned.results;
 
   const flat: Located[] = results.flatMap((r) => r.findings.map((f) => ({ f, file: r.file })));
   const risky = flat.filter((x) => SEV_RANK[x.f.severity] >= SEV_RANK.danger);
@@ -71,7 +72,7 @@ export async function runAudit(argv: string[]): Promise<number> {
   console.log(headline || 'nothing recognized');
 
   if (!risky.length) {
-    const un0 = unanalyzedLines(results);
+    const un0 = disclosureLines(scanned);
     if (un0.length) console.log('\n' + un0.join('\n'));
     console.log(`\nNo latent risks found in your migration history${un0.length ? ' (in what was analyzable)' : ''}. Clean bill of health.\n`);
     return decideExit(tally, args.failOn);
@@ -117,7 +118,7 @@ export async function runAudit(argv: string[]): Promise<number> {
 
   console.log('\nFix any one with:  ballast check <file> --explain   (shows the verified safe rewrite)');
   if (!loadAware) console.log('Re-run with --dsn "$DATABASE_URL" to rank these by real blast radius at today\'s scale.');
-  const un = unanalyzedLines(results);
+  const un = disclosureLines(scanned);
   if (un.length) console.log('\n' + un.join('\n'));
   console.log();
 

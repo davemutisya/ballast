@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { findingLines } from '../analyze.ts';
 import { byId } from '../catalog/index.ts';
-import { scan, unanalyzedLines, validSeverity, type FileFindings } from './scan.ts';
+import { disclosureLines, scan, validFormat, validSeverity, type FileFindings, type ScanResult } from './scan.ts';
 import type { Finding, Severity } from '../types.ts';
 
 const SEV_RANK: Record<Severity, number> = { safe: 0, caution: 1, danger: 2, critical: 3 };
@@ -24,7 +24,7 @@ function parseArgs(argv: string[]): Args {
     if (t === '--dsn') a.dsn = argv[++i];
     else if (t === '--table') a.table = argv[++i];
     else if (t === '--fail-on') a.failOn = validSeverity(argv[++i]);
-    else if (t === '--format') a.format = argv[++i] as Format;
+    else if (t === '--format') a.format = validFormat(argv[++i]);
     else if (t === '--json') a.format = 'json';
     else if (t === '--explain') a.explain = true;
     else if (!t.startsWith('-')) a.paths.push(t);
@@ -47,11 +47,12 @@ function explainLines(f: Finding): string[] {
 
 export async function runCheck(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
-  const results = await scan(args.paths, args.dsn, args.table);
+  const scanned = await scan(args.paths, args.dsn, args.table);
+  const results = scanned.results;
 
-  if (args.format === 'json') console.log(JSON.stringify(results, null, 2));
-  else if (args.format === 'md') console.log(renderMarkdown(results, !!args.dsn));
-  else render(results, !!args.dsn, args.explain);
+  if (args.format === 'json') console.log(JSON.stringify(scanned, null, 2));
+  else if (args.format === 'md') console.log(renderMarkdown(scanned, !!args.dsn));
+  else render(scanned, !!args.dsn, args.explain);
 
   const worst = Math.max(0, ...results.flatMap((r) => r.findings.map((f) => SEV_RANK[f.severity])));
   return worst >= SEV_RANK[args.failOn] ? 1 : 0;
@@ -60,7 +61,8 @@ export async function runCheck(argv: string[]): Promise<number> {
 const ICON: Record<Severity, string> = { safe: '✅', caution: '⚠️', danger: '⛔', critical: '🔥' };
 
 /** A PR-comment-shaped report. The marker on line 1 lets the Action update in place. */
-function renderMarkdown(results: FileFindings[], loadAware: boolean): string {
+function renderMarkdown(scanned: ScanResult, loadAware: boolean): string {
+  const results: FileFindings[] = scanned.results;
   const all = results.flatMap((r) => r.findings.map((f) => ({ f, file: r.file })));
   const unTotal = results.reduce((s, r) => s + r.unanalyzed.length, 0);
   const tally: Record<Severity, number> = { safe: 0, caution: 0, danger: 0, critical: 0 };
@@ -94,7 +96,8 @@ function renderMarkdown(results: FileFindings[], loadAware: boolean): string {
   return out.join('\n');
 }
 
-function render(results: FileFindings[], loadAware: boolean, explain: boolean) {
+function render(scanned: ScanResult, loadAware: boolean, explain: boolean) {
+  const results = scanned.results;
   const n = results.reduce((s, r) => s + r.findings.length, 0);
   const benign = results.reduce((s, r) => s + r.benign, 0);
   console.log(`\nballast check — ${results.length} file(s), ${n} DDL statement(s)${loadAware ? ' [load-aware]' : ' [structural — --dsn for load-aware]'}\n`);
@@ -111,7 +114,7 @@ function render(results: FileFindings[], loadAware: boolean, explain: boolean) {
   }
   const parts = (['critical', 'danger', 'caution', 'safe'] as Severity[]).filter((s) => tally[s]).map((s) => `${tally[s]} ${s}`);
   console.log(`Summary: ${parts.join(', ') || 'nothing recognized'}${benign ? `  (+ ${benign} benign statement(s))` : ''}`);
-  const un = unanalyzedLines(results);
-  if (un.length) console.log('\n' + un.join('\n'));
+  const disc = disclosureLines(scanned);
+  if (disc.length) console.log('\n' + disc.join('\n'));
 }
 

@@ -15,6 +15,8 @@ export interface LockFacts {
   safeRewrite: string | null;
   /** Irreversible data/schema loss (DROP TABLE, TRUNCATE) — dangerous regardless of lock duration. */
   destructive?: boolean;
+  /** Hazardous despite blocking no reads/writes (e.g. unbatched backfill: row locks, WAL bloat). */
+  noLockHazard?: boolean;
   catalogId?: string;
   sources?: string[];
 }
@@ -79,6 +81,38 @@ export function lockFactsFor(stmt: Statement): LockFacts {
         `Stop referencing the column in app code and deploy first; then drop in a low-lock_timeout migration.`);
 
     // ── New-coverage ops (real-parser era) ──────────────────────────────────
+    case 'ADD_PK_USING_INDEX':
+    case 'ADD_UNIQUE_USING_INDEX':
+      // Attaches a PRE-BUILT index: catalog-only. This is the final step of our
+      // own safe rewrite — it must never be flagged.
+      return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY', null);
+    case 'CREATE_TABLE_FK': {
+      // The finding's table is the PRE-EXISTING PARENT: creating a child with an
+      // FK takes SHARE ROW EXCLUSIVE on it — brief (child is empty), but it
+      // queues behind long transactions like any lock acquisition.
+      return {
+        lockMode: 'SHARE ROW EXCLUSIVE on the referenced (parent) table — brief',
+        costClass: 'METADATA_ONLY', blocksReads: false, blocksWrites: true,
+        safeRewrite: null, destructive: false,
+      };
+    }
+    case 'ALTER_ENUM_ADD_VALUE':
+      return {
+        lockMode: 'lock on the enum TYPE only — no table lock',
+        costClass: 'METADATA_ONLY', blocksReads: false, blocksWrites: false,
+        safeRewrite: null, destructive: false,
+      };
+    case 'UNBATCHED_DML':
+      return {
+        lockMode: 'ROW EXCLUSIVE + row locks on every touched row until commit',
+        costClass: 'SCAN', blocksReads: false, blocksWrites: false,
+        safeRewrite:
+          'Batch the backfill: UPDATE/DELETE in key-range chunks, committing each batch ' +
+          '(a single-transaction full-table write holds row locks the whole time, bloats WAL, ' +
+          'stalls replicas, and blocks writes to every touched row).',
+        destructive: false,
+        noLockHazard: true,
+      };
     case 'DROP_INDEX':
       if (stmt.concurrent) return mk('SHARE UPDATE EXCLUSIVE', 'METADATA_ONLY', null);
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
@@ -93,8 +127,18 @@ export function lockFactsFor(stmt: Statement): LockFacts {
       return mk('ACCESS EXCLUSIVE', 'SCAN',
         `REFRESH MATERIALIZED VIEW CONCURRENTLY <mv>;  — requires a UNIQUE index on the matview, but readers are not blocked during the refresh.`);
     case 'ATTACH_PARTITION':
-      return mk('SHARE UPDATE EXCLUSIVE', 'SCAN',
-        `Before ATTACH, add a CHECK constraint on the child matching the partition bounds (ADD ... NOT VALID, then VALIDATE) so Postgres skips the verification scan; drop the CHECK after.`);
+      // Parent: SHARE UPDATE EXCLUSIVE (DML unaffected). Child: ACCESS EXCLUSIVE
+      // while every row is validated against the bounds — real scan, but the
+      // child is usually offline staging, so caution rather than danger.
+      return {
+        lockMode: 'SHARE UPDATE EXCLUSIVE on the parent; ACCESS EXCLUSIVE on the child while its rows are validated',
+        costClass: 'SCAN', blocksReads: true, blocksWrites: false,
+        safeRewrite:
+          `Before ATTACH, add a CHECK constraint on the child matching the partition bounds ` +
+          `(ADD ... NOT VALID, then VALIDATE) so Postgres skips the verification scan; drop the CHECK after. ` +
+          `If a DEFAULT partition exists it is ALSO scanned under ACCESS EXCLUSIVE — see the catalog entry.`,
+        destructive: false,
+      };
     case 'DETACH_PARTITION':
       return mk('ACCESS EXCLUSIVE', 'METADATA_ONLY',
         `ALTER TABLE <parent> DETACH PARTITION <part> CONCURRENTLY;  (PG 14+; cannot run in a transaction) — avoids the ACCESS EXCLUSIVE parent lock.`);
