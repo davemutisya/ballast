@@ -94,6 +94,13 @@ function classify(node: Record<string, any>, raw: string): Statement[] {
       // (we can't judge selectivity statically).
       if (!n.whereClause) return [st(raw, 'UNBATCHED_DML', rangeVar(n.relation), false)];
       return [benign(raw)];
+    case 'VariableSetStmt': {
+      // Benign, but the pipeline's timeout-hygiene rule needs to know whether the
+      // script bounds its lock waits (SET [LOCAL] lock_timeout = ...).
+      const b = benign(raw);
+      if (n.name === 'lock_timeout') b.detail = 'sets lock_timeout';
+      return [b];
+    }
     default:
       if (type && BENIGN_NODES.has(type)) return [benign(raw)];
       return [un(raw, `unmapped statement type ${type ?? '(empty)'}`)];

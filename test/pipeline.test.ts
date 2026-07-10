@@ -89,3 +89,15 @@ test('a syntax error marks the WHOLE script unanalyzed — disclosed, not silent
   assert.equal(r.unanalyzed.length, 1);
   assert.match(r.unanalyzed[0].detail ?? '', /did not parse/);
 });
+
+test('timeout hygiene: risky script without SET lock_timeout gets the note', async () => {
+  const r = await analyzeScript('CREATE INDEX i ON big (v);');
+  assert.ok(r.notes.some((n) => n.includes('SET lock_timeout')), JSON.stringify(r.notes));
+});
+
+test('timeout hygiene: satisfied by SET lock_timeout, silent on safe scripts', async () => {
+  const bounded = await analyzeScript("SET lock_timeout = '2s'; CREATE INDEX i ON big (v);");
+  assert.ok(!bounded.notes.some((n) => n.includes('SET lock_timeout')), 'should not nag when bounded');
+  const safe = await analyzeScript('ALTER TABLE t ADD COLUMN c text;');
+  assert.ok(!safe.notes.some((n) => n.includes('SET lock_timeout')), 'should not nag on all-safe scripts');
+});

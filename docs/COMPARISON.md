@@ -51,9 +51,11 @@ noise at that volume is what gets a linter deleted.
 ## Where Squawk is genuinely better (kept honest)
 
 - **`require-timeout-settings`** — it flags migrations that don't `SET
-  lock_timeout` / `statement_timeout` before slow operations. Ballast *advises*
-  lock_timeout in its rewrites but has no rule requiring it. That's a real
-  Squawk-only check today (on our backlog).
+  lock_timeout` before slow operations. At benchmark time (0.2.0) Ballast
+  *advised* lock_timeout in every rewrite but had no rule requiring it — a real
+  Squawk win this benchmark surfaced. **Closed in 0.2.1:** a script with any
+  non-safe finding and no `SET lock_timeout` now gets the hygiene note
+  (advisory, not a gate — bounding lock waits is our own incident-#1 advice).
 - **Correct on the fast-default rule** — like Ballast, it did *not* flag
   `DEFAULT now()` (both tools got PG 11+ semantics right; several folk rules and
   at least one LLM don't).

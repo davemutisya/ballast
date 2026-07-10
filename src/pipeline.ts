@@ -89,6 +89,18 @@ export async function analyzeScript(
     findings.push(f);
   }
 
+  // Timeout hygiene — our own #1 advice, enforced. If this script takes real
+  // locks (any caution+ finding) and never bounds the wait with SET lock_timeout,
+  // a blocked DDL sits in the lock queue and stalls ALL traffic behind it
+  // (docs/blog/001). Advisory note, not a gate: hygiene ≠ danger.
+  const risky = findings.some((f) => f.severity !== 'safe');
+  const boundsWait = stmts.some((s) => s.detail === 'sets lock_timeout');
+  if (risky && !boundsWait) {
+    notes.push(
+      "⚠️ no `SET lock_timeout` before lock-taking DDL — if a lock is contended, the migration queues and ALL traffic queues behind it. Add: SET lock_timeout = '2s'; and retry on failure.",
+    );
+  }
+
   return {
     findings,
     benign: stmts.filter((s) => !isAnalyzable(s) && s.kind !== 'UNANALYZED').length,
